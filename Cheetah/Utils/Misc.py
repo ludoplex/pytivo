@@ -48,7 +48,7 @@ def checkKeywords(dic, legalKeywords, what='argument'):
     # XXX legalKeywords could be a set when sets get added to Python.
     for k in dic.keys(): # Can be dic.iterkeys() if Python >= 2.2.
         if k not in legalKeywords: 
-            raise TypeError("'%s' is not a valid %s" % (k, what))
+            raise TypeError(f"'{k}' is not a valid {what}")
 
 
 def removeFromList(list_, *elements):

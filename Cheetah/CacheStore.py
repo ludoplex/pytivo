@@ -60,11 +60,10 @@ class MemoryCacheStore(AbstractCacheStore):
         
     def get(self, key):
         (val, exptime) = self._data[key]
-        if exptime and currentTime() > exptime:
-            del self._data[key]
-            raise KeyError(key)
-        else:
+        if not exptime or currentTime() <= exptime:
             return val
+        del self._data[key]
+        raise KeyError(key)
 
     def clear(self):
         self._data.clear()        
@@ -81,16 +80,16 @@ class MemcachedCacheStore(AbstractCacheStore):
         self._client.set(key, val, time)
 
     def add(self, key, val, time=0):
-        res = self._client.add(key, val, time)        
-        if not res:
+        if res := self._client.add(key, val, time):
+            self._data[key] = (val, time)
+        else:
             raise Error('a value for key %r is already in the cache'%key)
-        self._data[key] = (val, time)
 
     def replace(self, key, val, time=0):
-        res = self._client.replace(key, val, time)        
-        if not res:
+        if res := self._client.replace(key, val, time):
+            self._data[key] = (val, time)
+        else:
             raise Error('a value for key %r is already in the cache'%key)
-        self._data[key] = (val, time)
 
     def delete(self, key):
         res = self._client.delete(key, time=0)        

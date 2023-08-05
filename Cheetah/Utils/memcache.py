@@ -125,7 +125,7 @@ class Client:
         data = []
         for s in self.servers:
             if not s.connect(): continue
-            name = '%s:%s (%s)' % ( s.ip, s.port, s.weight )
+            name = f'{s.ip}:{s.port} ({s.weight})'
             s.send_cmd('stats')
             serverData = {}
             data.append(( name, serverData ))
@@ -165,8 +165,7 @@ class Client:
     def _init_buckets(self):
         self.buckets = []
         for server in self.servers:
-            for i in range(server.weight):
-                self.buckets.append(server)
+            self.buckets.extend(server for _ in range(server.weight))
 
     def _get_server(self, key):
         if type(key) == types.TupleType:
@@ -415,13 +414,11 @@ class Client:
         if not line:
             line = server.readline()
 
-        if line[:5] == 'VALUE':
-            resp, rkey, flags, len = line.split()
-            flags = int(flags)
-            rlen = int(len)
-            return (rkey, flags, rlen)
-        else:
+        if line[:5] != 'VALUE':
             return (None, None, None)
+        resp, rkey, flags, len = line.split()
+        flags = int(flags)
+        return rkey, flags, int(len)
 
     def _recv_value(self, server, flags, rlen):
         rlen += 2 # include \r\n
@@ -429,8 +426,7 @@ class Client:
         if len(buf) != rlen:
             raise _Error("received %d bytes when expecting %d" % (len(buf), rlen))
 
-        if len(buf) == rlen:
-            buf = buf[:-2]  # strip \r\n
+        buf = buf[:-2]  # strip \r\n
 
         if flags == 0:
             val = buf
@@ -479,12 +475,10 @@ class _Host:
         return 0
 
     def connect(self):
-        if self._get_socket():
-            return 1
-        return 0
+        return 1 if self._get_socket() else 0
 
     def mark_dead(self, reason):
-        self.debuglog("MemCache: %s: %s.  Marking dead." % (self, reason))
+        self.debuglog(f"MemCache: {self}: {reason}.  Marking dead.")
         self.deaduntil = time.time() + _Host._DEAD_RETRY
         self.close_socket()
         
@@ -521,8 +515,7 @@ class _Host:
         while 1:
             data = recv(1)
             if not data:
-                self.mark_dead('Connection closed while reading from %s'
-                        % repr(self))
+                self.mark_dead(f'Connection closed while reading from {repr(self)}')
                 break
             if data == '\n' and buffers and buffers[-1] == '\r':
                 return(buffers[:-1])
@@ -532,20 +525,18 @@ class _Host:
     def expect(self, text):
         line = self.readline()
         if line != text:
-            self.debuglog("while expecting '%s', got unexpected response '%s'" % (text, line))
+            self.debuglog(f"while expecting '{text}', got unexpected response '{line}'")
         return line
     
     def recv(self, rlen):
         buf = ''
         recv = self.socket.recv
         while len(buf) < rlen:
-            buf = buf + recv(rlen - len(buf))
+            buf += recv(rlen - len(buf))
         return buf
 
     def __str__(self):
-        d = ''
-        if self.deaduntil:
-            d = " (dead until %d)" % self.deaduntil
+        d = " (dead until %d)" % self.deaduntil if self.deaduntil else ''
         return "%s:%d%s" % (self.ip, self.port, d)
 
 def _doctest():
@@ -566,8 +557,8 @@ if __name__ == "__main__":
 
     def to_s(val):
         if not isinstance(val, types.StringTypes):
-            return "%s (%s)" % (val, type(val))
-        return "%s" % val
+            return f"{val} ({type(val)})"
+        return f"{val}"
     def test_setget(key, val):
         print "Testing set/get {'%s': %s} ..." % (to_s(key), to_s(val)),
         mc.set(key, val)
@@ -585,9 +576,7 @@ if __name__ == "__main__":
         def __str__(self):
             return "A FooStruct"
         def __eq__(self, other):
-            if isinstance(other, FooStruct):
-                return self.bar == other.bar
-            return 0
+            return self.bar == other.bar if isinstance(other, FooStruct) else 0
         
     test_setget("a_string", "some random string")
     test_setget("an_integer", 42)

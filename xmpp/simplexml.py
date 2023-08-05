@@ -82,12 +82,12 @@ class Node:
         s = (fancy-1) * 2 * ' ' + "<" + self.name
         if self.namespace:
             if not self.parent or self.parent.namespace!=self.namespace:
-                s = s + ' xmlns="%s"'%self.namespace
+                s = f'{s} xmlns="{self.namespace}"'
         for key in self.attrs.keys():
             val = ustr(self.attrs[key])
-            s = s + ' %s="%s"' % ( key, XMLescape(val) )
-        s = s + ">"
-        cnt = 0 
+            s = f'{s} {key}="{XMLescape(val)}"'
+        s = f"{s}>"
+        cnt = 0
         if self.kids:
             if fancy: s = s + "\n"
             for a in self.kids:
@@ -98,12 +98,11 @@ class Node:
         if not fancy and (len(self.data)-1) >= cnt: s = s + XMLescape(self.data[cnt])
         elif (len(self.data)-1) >= cnt: s = s + XMLescape(self.data[cnt].strip())
         if not self.kids and s[-1:]=='>':
-            s=s[:-1]+' />'
-            if fancy: s = s + "\n"
+            s = f'{s[:-1]} />'
         else:
             if fancy and not self.data: s = s + (fancy-1) * 2 * ' '
-            s = s + "</" + self.name + ">"
-            if fancy: s = s + "\n"
+            s = f"{s}</{self.name}>"
+        if fancy: s = s + "\n"
         return s
     def getCDATA(self):
         """ Serialise node, dropping all tags and leaving CDATA intact.
@@ -123,7 +122,8 @@ class Node:
             the other arguments' values and adds it as well."""
         if attrs.has_key('xmlns'):
             raise AttributeError("Use namespace=x instead of attrs={'xmlns':x}")
-        if namespace: name=namespace+' '+name
+        if namespace:
+            name = f'{namespace} {name}'
         if node:
             newnode=node
             node.parent = self
@@ -228,9 +228,10 @@ class Node:
     def setTag(self, name, attrs={}, namespace=None):
         """ Same as getTag but if the node with specified namespace/attributes not found, creates such
             node and returns it. """
-        node=self.getTags(name, attrs, namespace=namespace, one=1)
-        if node: return node
-        else: return self.addChild(name, attrs, namespace=namespace)
+        if node := self.getTags(name, attrs, namespace=namespace, one=1):
+            if node: return node
+        else:
+            return self.addChild(name, attrs, namespace=namespace)
     def setTagAttr(self,tag,attr,val):
         """ Creates new node (if not already present) with name "tag"
             and sets it's attribute "attr" to value "val". """
@@ -369,7 +370,8 @@ class NodeBuilder:
 
     def handle_namespace_start(self, prefix, uri):
         """XML Parser callback. Used internally"""
-        if prefix: self.namespaces[uri]=prefix+':'
+        if prefix:
+            self.namespaces[uri] = f'{prefix}:'
         else: self.xmlns=uri
     def DEBUG(self, level, text, comment=None):
         """ Gets all NodeBuilder walking events. Can be used for debugging if redefined."""

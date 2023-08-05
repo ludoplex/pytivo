@@ -61,7 +61,7 @@ class OggFLACStreamInfo(StreamInfo):
         super(OggFLACStreamInfo, self).load(StringIO(page.packets[0][17:]))
 
     def pprint(self):
-        return "Ogg " + super(OggFLACStreamInfo, self).pprint()
+        return f"Ogg {super(OggFLACStreamInfo, self).pprint()}"
 
 class OggFLACVComment(VCFLACDict):
     def load(self, data, info, errors='replace'):
@@ -88,7 +88,7 @@ class OggFLACVComment(VCFLACDict):
             page = OggPage(fileobj)
 
         first_page = page
-        while not (page.sequence == 1 and page.serial == first_page.serial):
+        while page.sequence != 1 or page.serial != first_page.serial:
             page = OggPage(fileobj)
 
         old_pages = [page]
@@ -115,7 +115,7 @@ class OggFLAC(OggFileType):
     _Error = OggFLACHeaderError
     _mimes = ["audio/x-oggflac"]
 
-    def score(filename, fileobj, header):
+    def score(self, fileobj, header):
         return (header.startswith("OggS") * (
             ("FLAC" in header) + ("fLaC" in header)))
     score = staticmethod(score)

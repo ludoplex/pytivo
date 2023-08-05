@@ -69,7 +69,7 @@ class Roster(PlugIn):
             if item.getAttr('subscription')=='remove':
                 if self._data.has_key(jid): del self._data[jid]
                 raise NodeProcessed             # a MUST
-            self.DEBUG('Setting roster item %s...'%jid,'ok')
+            self.DEBUG(f'Setting roster item {jid}...', 'ok')
             if not self._data.has_key(jid): self._data[jid]={}
             self._data[jid]['name']=item.getAttr('name')
             self._data[jid]['ask']=item.getAttr('ask')
@@ -77,7 +77,13 @@ class Roster(PlugIn):
             self._data[jid]['groups']=[]
             if not self._data[jid].has_key('resources'): self._data[jid]['resources']={}
             for group in item.getTags('group'): self._data[jid]['groups'].append(group.getData())
-        self._data[self._owner.User+'@'+self._owner.Server]={'resources':{},'name':None,'ask':None,'subscription':None,'groups':None,}
+        self._data[f'{self._owner.User}@{self._owner.Server}'] = {
+            'resources': {},
+            'name': None,
+            'ask': None,
+            'subscription': None,
+            'groups': None,
+        }
         self.set=1
         raise NodeProcessed   # a MUST. Otherwise you'll get back an <iq type='error'/>
 
@@ -91,7 +97,10 @@ class Roster(PlugIn):
         typ=pres.getType()
 
         if not typ:
-            self.DEBUG('Setting roster item %s for resource %s...'%(jid.getStripped(),jid.getResource()),'ok')
+            self.DEBUG(
+                f'Setting roster item {jid.getStripped()} for resource {jid.getResource()}...',
+                'ok',
+            )
             item['resources'][jid.getResource()]=res={'show':None,'status':None,'priority':'0','timestamp':None}
             if pres.getTag('show'): res['show']=pres.getShow()
             if pres.getTag('status'): res['status']=pres.getStatus()
@@ -103,7 +112,7 @@ class Roster(PlugIn):
 
     def _getItemData(self,jid,dataname):
         """ Return specific jid's representation in internal format. Used internally. """
-        jid=jid[:(jid+'/').find('/')]
+        jid = jid[:f'{jid}/'.find('/')]
         return self._data[jid][dataname]
     def _getResourceData(self,jid,dataname):
         """ Return specific jid's resource representation in internal format. Used internally. """
@@ -135,7 +144,7 @@ class Roster(PlugIn):
         return self._data
     def getRawItem(self,jid):
         """ Returns roster item 'jid' representation in internal format. """
-        return self._data[jid[:(jid+'/').find('/')]]
+        return self._data[jid[:f'{jid}/'.find('/')]]
     def getShow(self, jid):
         """ Returns 'show' value of contact 'jid'. 'jid' should be a full (not bare) JID."""
         return self._getResourceData(jid,'show')
@@ -147,7 +156,7 @@ class Roster(PlugIn):
         return self._getItemData(jid,'subscription')
     def getResources(self,jid):
         """ Returns list of connected resources of contact 'jid'."""
-        return self._data[jid[:(jid+'/').find('/')]]['resources'].keys()
+        return self._data[jid[:f'{jid}/'.find('/')]]['resources'].keys()
     def setItem(self,jid,name=None,groups=[]):
         """ Creates/renames contact 'jid' and sets the groups list that it now belongs to."""
         iq=Iq('set',NS_ROSTER)

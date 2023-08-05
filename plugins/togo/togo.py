@@ -75,8 +75,7 @@ tivo_opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj),
                                    urllib2.HTTPBasicAuthHandler(auth_handler),
                                    urllib2.HTTPDigestAuthHandler(auth_handler))
 
-tsn = config.get_server('togo_tsn')
-if tsn:
+if tsn := config.get_server('togo_tsn'):
     tivo_opener.addheaders.append(('TSN', tsn))
 
 class ToGo(Plugin):
@@ -386,9 +385,9 @@ class ToGo(Plugin):
                     queue[tivoIP] = [theurl]
                     thread.start_new_thread(ToGo.process_queue,
                                             (self, tivoIP, tivo_mak, togo_path))
-                logger.info('[%s] Queued "%s" for transfer to %s' %
-                            (time.strftime('%d/%b/%Y %H:%M:%S'),
-                             unquote(theurl), togo_path))
+                logger.info(
+                    f"""[{time.strftime('%d/%b/%Y %H:%M:%S')}] Queued "{unquote(theurl)}" for transfer to {togo_path}"""
+                )
             urlstring = '<br>'.join([unicode(unquote(x), 'utf-8')
                                      for x in urls])
             message = TRANS_QUEUE % (urlstring, togo_path)
@@ -406,7 +405,7 @@ class ToGo(Plugin):
         tivoIP = query['TiVo'][0]
         del status[theurl]
         queue[tivoIP].remove(theurl)
-        logger.info('[%s] Removed "%s" from queue' %
-                    (time.strftime('%d/%b/%Y %H:%M:%S'),
-                     unquote(theurl)))
+        logger.info(
+            f"""[{time.strftime('%d/%b/%Y %H:%M:%S')}] Removed "{unquote(theurl)}" from queue"""
+        )
         handler.redir(UNQUEUE % unquote(theurl))

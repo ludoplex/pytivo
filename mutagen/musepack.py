@@ -78,9 +78,8 @@ class MusepackInfo(object):
 
             self.sample_rate = RATES[(flags >> 16) & 0x0003]
             self.bitrate = 0
-        # SV4-SV6
         else:
-            header_dword = cdata.uint_le(header[0:4])
+            header_dword = cdata.uint_le(header[:4])
             self.version = (header_dword >> 11) & 0x03FF;
             if self.version < 4 or self.version > 6:
                 raise MusepackHeaderError("not a Musepack file")
@@ -111,8 +110,8 @@ class Musepack(APEv2File):
     _Info = MusepackInfo
     _mimes = ["audio/x-musepack", "audio/x-mpc"]
 
-    def score(filename, fileobj, header):
-        return header.startswith("MP+") + filename.endswith(".mpc")
+    def score(self, fileobj, header):
+        return header.startswith("MP+") + self.endswith(".mpc")
     score = staticmethod(score)
 
 Open = Musepack

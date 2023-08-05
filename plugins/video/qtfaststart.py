@@ -106,14 +106,14 @@ def get_index(datastream):
     log.debug("Getting index of top level atoms...")
 
     # Read atoms until we catch an error
-    while(datastream):
+    while datastream:
         try:
             skip = 8
             atom_size, atom_type = read_atom(datastream)
             if atom_size == 1:
                 atom_size = struct.unpack(">Q", datastream.read(8))[0]
                 skip = 16
-            log.debug("%s: %s" % (atom_type, atom_size))
+            log.debug(f"{atom_type}: {atom_size}")
         except:
             break
 
@@ -132,10 +132,10 @@ def get_index(datastream):
         datastream.seek(atom_size - skip, os.SEEK_CUR)
 
     # Make sure the atoms we need exist
-    top_level_atoms = set([item[0] for item in index])
+    top_level_atoms = {item[0] for item in index}
     for key in ["moov", "mdat"]:
         if key not in top_level_atoms:
-            log.error("%s atom not found, is this a valid MOV/MP4 file?" % key)
+            log.error(f"{key} atom not found, is this a valid MOV/MP4 file?")
             raise FastStartException()
 
     return index
@@ -162,8 +162,7 @@ def find_atoms(size, datastream):
 
         if atom_type in ["trak", "mdia", "minf", "stbl"]:
             # Known ancestor atom of stco or co64, search within it!
-            for atype in find_atoms(atom_size - 8, datastream):
-                yield atype
+            yield from find_atoms(atom_size - 8, datastream)
         elif atom_type in ["stco", "co64"]:
             yield atom_type
         else:
@@ -196,20 +195,20 @@ def process(datastream, outfile, skip=0):
     # Make sure moov occurs AFTER mdat, otherwise no need to run!
     for atom, pos, size in index:
         # The atoms are guaranteed to exist from get_index above!
-        if atom == "moov":
+        if atom == "mdat":
+            mdat_pos = pos
+
+        elif atom == "moov":
             moov_pos = pos
             moov_size = size
-        elif atom == "mdat":
-            mdat_pos = pos
- 
     if moov_pos < mdat_pos:
         log.debug('mp4 already streamable -- copying')
         datastream.seek(skip)
         while True:
-            block = datastream.read(CHUNK_SIZE)
-            if not block:
+            if block := datastream.read(CHUNK_SIZE):
+                output(outfile, 0, block)
+            else:
                 break
-            output(outfile, 0, block)
         return count
 
     # Read and fix moov
@@ -221,7 +220,7 @@ def process(datastream, outfile, skip=0):
 
     for atom_type in find_atoms(moov_size - 8, moov):
         # Read either 32-bit or 64-bit offsets
-        ctype, csize = atom_type == "stco" and ("L", 4) or ("Q", 8)
+        ctype, csize = ("L", 4) if atom_type == "stco" else ("Q", 8)
 
         # Get number of entries
         version, entry_count = struct.unpack(">2L", moov.read(8))
@@ -255,7 +254,7 @@ def process(datastream, outfile, skip=0):
         datastream.seek(pos)
 
         # Write in chunks to not use too much memory
-        for x in range(size / CHUNK_SIZE):
+        for _ in range(size / CHUNK_SIZE):
             output(outfile, skip, datastream.read(CHUNK_SIZE))
 
         if size % CHUNK_SIZE:

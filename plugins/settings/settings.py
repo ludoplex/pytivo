@@ -107,7 +107,7 @@ class Settings(Plugin):
         config.config.add_section(section)
         for key, value in query.items():
             key = key.replace('opts.', '', 1)
-            if key.startswith(label + '.'):
+            if key.startswith(f'{label}.'):
                 _, option = key.split('.')
                 default = buildhelp.default.get(option, ' ')
                 value = value[0]
@@ -119,7 +119,7 @@ class Settings(Plugin):
                     new_value = value
                 elif value not in (' ', default):
                     config.config.set(section, option, value)
-        if not(new_setting == ' ' and new_value == ' '):
+        if new_setting != ' ' or new_value != ' ':
             config.config.set(section, new_setting, new_value)
 
     def UpdateSettings(self, handler, query):

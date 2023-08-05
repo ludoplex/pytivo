@@ -88,14 +88,14 @@ class Atom(object):
         else:
             fileobj.seek(self.offset + self.length, 0)
 
-    def render(name, data):
+    def render(self, data):
         """Render raw atom data."""
         # this raises OverflowError if Py_ssize_t can't handle the atom data
         size = len(data) + 8
         if size <= 0xFFFFFFFF:
-            return struct.pack(">I4s", size, name) + data
+            return struct.pack(">I4s", size, self) + data
         else:
-            return struct.pack(">I4sQ", 1, name, size + 8) + data
+            return struct.pack(">I4sQ", 1, self, size + 8) + data
     render = staticmethod(render)
 
     def findall(self, name, recursive=False):
@@ -105,8 +105,7 @@ class Atom(object):
                 if child.name == name:
                     yield child
                 if recursive:
-                    for atom in child.findall(name, True):
-                        yield atom
+                    yield from child.findall(name, True)
 
     def __getitem__(self, remaining):
         """Look up a child atom, potentially recursively.
@@ -128,11 +127,15 @@ class Atom(object):
         if self.children is None:
             return "<%s name=%r length=%r offset=%r>" % (
                 klass, self.name, self.length, self.offset)
-        else:
-            children = "\n".join([" " + line for child in self.children
-                                  for line in repr(child).splitlines()])
-            return "<%s name=%r length=%r offset=%r\n%s>" % (
-                klass, self.name, self.length, self.offset, children)
+        children = "\n".join(
+            [
+                f" {line}"
+                for child in self.children
+                for line in repr(child).splitlines()
+            ]
+        )
+        return "<%s name=%r length=%r offset=%r\n%s>" % (
+            klass, self.name, self.length, self.offset, children)
 
 class Atoms(object):
     """Root atoms in a given file.
@@ -158,8 +161,7 @@ class Atoms(object):
         atoms.
         """
         path = [self]
-        for name in names:
-            path.append(path[-1][name,])
+        path.extend(path[-1][name,] for name in names)
         return path[1:]
 
     def __getitem__(self, names):
@@ -174,7 +176,7 @@ class Atoms(object):
             if child.name == names[0]:
                 return child[names[1:]]
         else:
-            raise KeyError, "%s not found" % names[0]
+            raise (KeyError, f"{names[0]} not found")
 
     def __repr__(self):
         return "\n".join([repr(child) for child in self.atoms])
@@ -250,16 +252,16 @@ class MP4Tags(DictProxy, Metadata):
             info = self.__atoms.get(atom.name, (type(self).__parse_text, None))
             info[0](self, atom, data, *info[2:])
 
-    def __key_sort(item1, item2):
-        (key1, v1) = item1
+    def __key_sort(self, item2):
+        (key1, v1) = self
         (key2, v2) = item2
-        # iTunes always writes the tags in order of "relevance", try
-        # to copy it as closely as possible.
-        order = ["\xa9nam", "\xa9ART", "\xa9wrt", "\xa9alb",
-                 "\xa9gen", "gnre", "trkn", "disk",
-                 "\xa9day", "cpil", "pgap", "pcst", "tmpo",
-                 "\xa9too", "----", "covr", "\xa9lyr",
-+                "stik", "tvsh", "tven", "tvsn", "tves", "tvnn"]
+            # iTunes always writes the tags in order of "relevance", try
+            # to copy it as closely as possible.
+            order = ["\xa9nam", "\xa9ART", "\xa9wrt", "\xa9alb",
+                     "\xa9gen", "gnre", "trkn", "disk",
+                     "\xa9day", "cpil", "pgap", "pcst", "tmpo",
+                     "\xa9too", "----", "covr", "\xa9lyr",
+        +            "stik", "tvsh", "tven", "tvsn", "tves", "tvnn"]
         order = dict(zip(order, range(len(order))))
         last = len(order)
         # If there's no key-based way to distinguish, order by length.
@@ -438,7 +440,7 @@ class MP4Tags(DictProxy, Metadata):
             value.append(data[pos+16:pos+length])
             pos += length
         if value:
-            self["%s:%s:%s" % (atom.name, mean, name)] = value
+            self[f"{atom.name}:{mean}:{name}"] = value
     def __render_freeform(self, key, value):
         dummy, mean, name = key.split(":", 2)
         mean = struct.pack(">I4sI", len(mean) + 12, "mean", 0) + mean
@@ -511,8 +513,7 @@ class MP4Tags(DictProxy, Metadata):
                 raise MP4MetadataValueError(
                     "invalid 8 bit integers: %r" % value)
         except TypeError:
-            raise MP4MetadataValueError(
-                "%s must be a list of 8 bit integers" % (key))
+            raise MP4MetadataValueError(f"{key} must be a list of 8 bit integers")
 
         values = list(map(cdata.to_uchar_be, value))
         return self.__render_data(key, 0x07, values)
@@ -530,8 +531,7 @@ class MP4Tags(DictProxy, Metadata):
                 raise MP4MetadataValueError(
                     "invalid 32 bit integers: %r" % value)
         except TypeError:
-            raise MP4MetadataValueError(
-                "%s must be a list of 32 bit integers" % (key))
+            raise MP4MetadataValueError(f"{key} must be a list of 32 bit integers")
 
         values = list(map(cdata.to_uint_be, value))
         return self.__render_data(key, 0x31, values)
@@ -569,10 +569,11 @@ class MP4Tags(DictProxy, Metadata):
         return Atom.render(key, "".join(atom_data))
 
     def __parse_text(self, atom, data, expected_flags=1):
-        value = [text.decode('utf-8', 'replace') for flags, text
-                 in self.__parse_data(atom, data)
-                 if flags == expected_flags]
-        if value:
+        if value := [
+            text.decode('utf-8', 'replace')
+            for flags, text in self.__parse_data(atom, data)
+            if flags == expected_flags
+        ]:
             self[atom.name] = value
     def __render_text(self, key, value, flags=1):
         if isinstance(value, basestring):
@@ -611,9 +612,9 @@ class MP4Tags(DictProxy, Metadata):
                 values.append("%s=%s" % (key, ", ".join(
                     ["[%d bytes of data]" % len(data) for data in value])))
             elif isinstance(value, list):
-                values.append("%s=%s" % (key, " / ".join(map(unicode, value))))
+                values.append(f'{key}={" / ".join(map(unicode, value))}')
             else:
-                values.append("%s=%s" % (key, value))
+                values.append(f"{key}={value}")
         return "\n".join(values)
 
 class MP4Info(object):
@@ -720,7 +721,7 @@ class MP4(FileType):
     def add_tags(self):
         self.tags = self.MP4Tags()
 
-    def score(filename, fileobj, header):
+    def score(self, fileobj, header):
         return ("ftyp" in header) + ("mp4" in header)
     score = staticmethod(score)
 

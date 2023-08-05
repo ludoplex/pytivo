@@ -63,7 +63,7 @@ class MetadataBlock(object):
     def load(self, data): self.data = data.read()
     def write(self): return self.data
 
-    def writeblocks(blocks):
+    def writeblocks(self):
         """Render metadata block as a byte string."""
         data = []
         codes = [[block.code, block.write()] for block in blocks]
@@ -77,19 +77,19 @@ class MetadataBlock(object):
         return "".join(data)
     writeblocks = staticmethod(writeblocks)
 
-    def group_padding(blocks):
+    def group_padding(self):
         """Consolidate FLAC padding metadata blocks.
 
         The overall size of the rendered blocks does not change, so
         this adds several bytes of padding for each merged block."""
-        paddings = filter(lambda x: isinstance(x, Padding), blocks)
-        map(blocks.remove, paddings)
+        paddings = filter(lambda x: isinstance(x, Padding), self)
+        map(self.remove, paddings)
         padding = Padding()
         # total padding size is the sum of padding sizes plus 4 bytes
         # per removed header.
-        size = sum([padding.length for padding in paddings])
+        size = sum(padding.length for padding in paddings)
         padding.length = size + 4 * (len(paddings) - 1)
-        blocks.append(padding)
+        self.append(padding)
     group_padding = staticmethod(group_padding)
 
 class StreamInfo(MetadataBlock):
@@ -361,21 +361,21 @@ class CueSheet(MetadataBlock):
     def load(self, data):
         header = data.read(self.__CUESHEET_SIZE)
         media_catalog_number, lead_in_samples, flags, num_tracks = \
-            struct.unpack(self.__CUESHEET_FORMAT, header)
+                struct.unpack(self.__CUESHEET_FORMAT, header)
         self.media_catalog_number = media_catalog_number.rstrip('\0')
         self.lead_in_samples = lead_in_samples
         self.compact_disc = bool(flags & 0x80)
         self.tracks = []
-        for i in range(num_tracks): 
+        for _ in range(num_tracks):
             track = data.read(self.__CUESHEET_TRACK_SIZE)
             start_offset, track_number, isrc_padded, flags, num_indexes = \
-                struct.unpack(self.__CUESHEET_TRACK_FORMAT, track)
+                    struct.unpack(self.__CUESHEET_TRACK_FORMAT, track)
             isrc = isrc_padded.rstrip('\0')
             type_ = (flags & 0x80) >> 7
             pre_emphasis = bool(flags & 0x40)
             val = CueSheetTrack(
                 track_number, start_offset, isrc, type_, pre_emphasis)
-            for j in range(num_indexes):
+            for _ in range(num_indexes):
                 index = data.read(self.__CUESHEET_TRACKINDEX_SIZE)
                 index_offset, index_number = struct.unpack(
                     self.__CUESHEET_TRACKINDEX_FORMAT, index)
@@ -525,9 +525,8 @@ class FLAC(FileType):
         CueSheet, Picture]
     """Known metadata block types, indexed by ID."""
 
-    def score(filename, fileobj, header):
-        return (header.startswith("fLaC") +
-                filename.lower().endswith(".flac") * 3)
+    def score(self, fileobj, header):
+        return (header.startswith("fLaC") + self.lower().endswith(".flac") * 3)
     score = staticmethod(score)
 
     def __read_metadata_block(self, fileobj):
@@ -573,10 +572,10 @@ class FLAC(FileType):
 
     def add_tags(self):
         """Add a Vorbis comment block to the file."""
-        if self.tags is None:
-            self.tags = VCFLACDict()
-            self.metadata_blocks.append(self.tags)
-        else: raise FLACVorbisError("a Vorbis comment already exists")
+        if self.tags is not None:
+            raise FLACVorbisError("a Vorbis comment already exists")
+        self.tags = VCFLACDict()
+        self.metadata_blocks.append(self.tags)
     add_vorbiscomment = add_tags
 
     def delete(self, filename=None):
@@ -674,7 +673,7 @@ class FLAC(FileType):
             insert_bytes(f, diff, header)
 
         f.seek(header - 4)
-        f.write("fLaC" + data)
+        f.write(f"fLaC{data}")
 
         # Delete ID3v1
         if deleteid3:

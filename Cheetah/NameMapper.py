@@ -169,22 +169,20 @@ class NotFound(LookupError):
     pass
 
 def _raiseNotFoundException(key, namespace):
-    excString = "cannot find '%s'"%key
+    excString = f"cannot find '{key}'"
     if _INCLUDE_NAMESPACE_REPR_IN_NOTFOUND_EXCEPTIONS:
-        excString += ' in the namespace %s'%pformat(namespace)
+        excString += f' in the namespace {pformat(namespace)}'
     raise NotFound(excString)
 
 def _wrapNotFoundException(exc, fullName, namespace):
-    if not _ALLOW_WRAPPING_OF_NOTFOUND_EXCEPTIONS:
-        raise 
-    else:
+    if _ALLOW_WRAPPING_OF_NOTFOUND_EXCEPTIONS:
         excStr = exc.args[0]
         if excStr.find('while searching')==-1: # only wrap once!
-            excStr +=" while searching for '%s'"%fullName
+            excStr += f" while searching for '{fullName}'"
             if _INCLUDE_NAMESPACE_REPR_IN_NOTFOUND_EXCEPTIONS:
-                excStr += ' in the namespace %s'%pformat(namespace)
+                excStr += f' in the namespace {pformat(namespace)}'
             exc.args = (excStr,)
-        raise
+    raise
     
 def hasKey(obj, key):
     """Determine if 'obj' has 'key' """
@@ -238,8 +236,7 @@ def valueFromSearchList(searchList, name, executeCallables=False):
 def _namespaces(callerFrame, searchList=None):
     yield callerFrame.f_locals
     if searchList:
-        for namespace in searchList:
-            yield namespace
+        yield from searchList
     yield callerFrame.f_globals
     yield __builtins__
 

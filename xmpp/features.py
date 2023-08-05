@@ -41,8 +41,7 @@ def _discover(disp,ns,jid,node=None,fb2b=0,fb2a=1):
     rep=disp.SendAndWaitForResponse(iq)
     if fb2b and not isResultNode(rep): rep=disp.SendAndWaitForResponse(Iq(to=jid,typ='get',queryNS=NS_BROWSE))   # Fallback to browse
     if fb2a and not isResultNode(rep): rep=disp.SendAndWaitForResponse(Iq(to=jid,typ='get',queryNS=NS_AGENTS))   # Fallback to agents
-    if isResultNode(rep): return rep.getQueryPayload()
-    return []
+    return rep.getQueryPayload() if isResultNode(rep) else []
 
 def discoverItems(disp,jid,node=None):
     """ Query remote object about any items that it contains. Return items list. """
@@ -160,8 +159,7 @@ def getPrivacyList(disp,listname):
 def setActivePrivacyList(disp,listname=None,typ='active'):
     """ Switches privacy list 'listname' to specified type.
         By default the type is 'active'. Returns true on success."""
-    if listname: attrs={'name':listname}
-    else: attrs={}
+    attrs = {'name':listname} if listname else {}
     resp=disp.SendAndWaitForResponse(Iq('set',NS_PRIVACY,payload=[Node(typ,attrs)]))
     if isResultNode(resp): return 1
 

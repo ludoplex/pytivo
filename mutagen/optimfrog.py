@@ -58,7 +58,10 @@ class OptimFROGInfo(object):
 class OptimFROG(APEv2File):
     _Info = OptimFROGInfo
 
-    def score(filename, fileobj, header):
-        return (header.startswith("OFR") + filename.endswith(".ofr") +
-                filename.endswith(".ofs"))
+    def score(self, fileobj, header):
+        return (
+            header.startswith("OFR")
+            + self.endswith(".ofr")
+            + self.endswith(".ofs")
+        )
     score = staticmethod(score)

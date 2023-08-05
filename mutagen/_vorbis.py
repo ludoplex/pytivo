@@ -149,14 +149,14 @@ class VComment(mutagen.Metadata, list):
         f.write(self.vendor.encode('utf-8'))
         f.write(cdata.to_uint_le(len(self)))
         for tag, value in self:
-            comment = "%s=%s" % (tag, value.encode('utf-8'))
+            comment = f"{tag}={value.encode('utf-8')}"
             f.write(cdata.to_uint_le(len(comment)))
             f.write(comment)
         if framing: f.write("\x01")
         return f.getvalue()
 
     def pprint(self):
-        return "\n".join(["%s=%s" % (k.lower(), v) for k, v in self])
+        return "\n".join([f"{k.lower()}={v}" for k, v in self])
 
 class VCommentDict(VComment, DictMixin):
     """A VComment that looks like a dictionary.
@@ -180,16 +180,18 @@ class VCommentDict(VComment, DictMixin):
 
         """
         key = key.lower().encode('ascii')
-        values = [value for (k, value) in self if k.lower() == key]
-        if not values: raise KeyError, key
-        else: return values
+        if values := [value for (k, value) in self if k.lower() == key]:
+            return values
+        else:
+            if not values: raise KeyError, key
 
     def __delitem__(self, key):
         """Delete all values associated with the key."""
         key = key.lower().encode('ascii')
-        to_delete = filter(lambda x: x[0].lower() == key, self)
-        if not to_delete:raise KeyError, key
-        else: map(self.remove, to_delete)
+        if to_delete := filter(lambda x: x[0].lower() == key, self):
+            map(self.remove, to_delete)
+        else:
+            if not to_delete:raise KeyError, key
 
     def __contains__(self, key):
         """Return true if the key has any values."""
@@ -216,7 +218,7 @@ class VCommentDict(VComment, DictMixin):
 
     def keys(self):
         """Return all keys in the comment."""
-        return self and list(set([k.lower() for k, v in self]))
+        return self and list({k.lower() for k, v in self})
 
     def as_dict(self):
         """Return a copy of the comment data in a real dict."""

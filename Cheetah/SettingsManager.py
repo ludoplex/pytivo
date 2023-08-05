@@ -86,29 +86,26 @@ def mergeNestedDictionaries(dict1, dict2, copy=False, deepcopy=False):
     return dict1
     
 def stringIsNumber(S):
-    
+
     """Return True if theString represents a Python number, False otherwise.
     This also works for complex numbers and numbers with +/- in front."""
 
     S = S.strip()
-    
+
     if S[0] in '-+' and len(S) > 1:
         S = S[1:].strip()
-    
+
     match = complexNumberRE.match(S)
     if not match:
         match = numberRE.match(S)
-    if not match or (match.end() != len(S)):
-        return False
-    else:
-        return True
+    return bool(match and match.end() == len(S))
         
 def convStringToNum(theString):
-    
+
     """Convert a string representation of a Python number to the Python version"""
     
     if not stringIsNumber(theString):
-        raise Error(theString + ' cannot be converted to a Python number')
+        raise Error(f'{theString} cannot be converted to a Python number')
     return eval(theString, {}, {})
 
 
@@ -232,7 +229,7 @@ class _SettingsCollector:
 
 
     def readSettingsFromContainer(self, container, ignoreUnderscored=True):
-        
+
         """Returns all settings from a SettingsContainer or Python
         module.
 
@@ -244,14 +241,11 @@ class _SettingsCollector:
             attrs = vars(container)
         else:
             attrs = self._getAllAttrsFromContainer(container)
-    
+
         for k, v in attrs.items():
             if (ignoreUnderscored and k.startswith('_')) or v is SettingsContainer:
                 continue
-            if self._isContainer(v):
-                S[k] = self.readSettingsFromContainer(v)
-            else:
-                S[k] = v
+            S[k] = self.readSettingsFromContainer(v) if self._isContainer(v) else v
         return S
 
     # provide an alias
@@ -286,7 +280,7 @@ class _SettingsCollector:
         return attrs
 
     def readSettingsFromPySrcFile(self, path):
-        
+
         """Return new settings dict from variables in a Python source file.
 
         This method will temporarily add the directory of src file to sys.path so
@@ -295,9 +289,9 @@ class _SettingsCollector:
         path = self.normalizePath(path)
         dirName = os.path.dirname(path)
         tmpPath = tempfile.mkstemp('webware_temp')
-        
+
         pySrc = translateClassBasedConfigSyntax(open(path).read())
-        modName = path.replace('.','_').replace('/','_').replace('\\','_')        
+        modName = path.replace('.','_').replace('/','_').replace('\\','_')
         open(tmpPath, 'w').write(pySrc)
         try:
             fp = open(tmpPath)
@@ -314,14 +308,14 @@ class _SettingsCollector:
                 os.remove(tmpPath)
             except:
                 pass
-            if os.path.exists(tmpPath + 'c'):
+            if os.path.exists(f'{tmpPath}c'):
                 try:
-                    os.remove(tmpPath + 'c')
+                    os.remove(f'{tmpPath}c')
                 except:
                     pass
-            if os.path.exists(path + 'c'):
+            if os.path.exists(f'{path}c'):
                 try:
-                    os.remove(path + 'c')
+                    os.remove(f'{path}c')
                 except:
                     pass
                 
@@ -343,13 +337,12 @@ class _SettingsCollector:
 
     def readSettingsFromConfigFile(self, path, convert=True):
         path = self.normalizePath(path)
-        fp = open(path)
-        settings = self.readSettingsFromConfigFileObj(fp, convert=convert)
-        fp.close()
+        with open(path) as fp:
+            settings = self.readSettingsFromConfigFileObj(fp, convert=convert)
         return settings
 
     def readSettingsFromConfigFileObj(self, inFile, convert=True):
-        
+
         """Return the settings from a config file that uses the syntax accepted by
         Python's standard ConfigParser module (like Windows .ini files).
 
@@ -384,7 +377,7 @@ class _SettingsCollector:
 
         sects = p.sections()
         newSettings = {}
-        
+
         for s in sects:
             newSettings[s] = {}
             for o in p.options(s):
@@ -407,7 +400,7 @@ class _SettingsCollector:
                         subDict[key] = False
                     if stringIsNumber(val):
                         subDict[key] = convStringToNum(val)
-                        
+
                 ## now deal with any 'importSettings' commands
                 if key.lower() == 'importsettings':
                     if val.find(';') < 0:
@@ -416,15 +409,15 @@ class _SettingsCollector:
                         path = val.split(';')[0]
                         rest = ''.join(val.split(';')[1:]).strip()
                         parentDict = self.readSettingsFromPySrcFile(path)
-                        importedSettings = eval('parentDict["' + rest + '"]')
-                        
+                        importedSettings = eval(f'parentDict["{rest}"]')
+
                     subDict.update(mergeNestedDictionaries(subDict,
                                                            importedSettings))
-                        
+
             if sect.lower() == 'globals':
-                newSettings.update(newSettings[sect])
+                newSettings |= newSettings[sect]
                 del newSettings[sect]
-                
+
         return newSettings
 
 
@@ -525,15 +518,14 @@ class SettingsManager(_SettingsCollector):
 
 
     def updateSettingsFromConfigFile(self, path, **kw):
-        
+
         """Update the settings from a text file using the syntax accepted by
         Python's standard ConfigParser module (like Windows .ini files). 
         """
         
         path = self.normalizePath(path)
-        fp = open(path)
-        self.updateSettingsFromConfigFileObj(fp, **kw)
-        fp.close()
+        with open(path) as fp:
+            self.updateSettingsFromConfigFileObj(fp, **kw)
 
     
     def updateSettingsFromConfigFileObj(self, inFile, convert=True, merge=True):
@@ -562,7 +554,7 @@ class SettingsManager(_SettingsCollector):
     ## methods for output representations of the settings
 
     def _createConfigFile(self, outFile=None):
-        
+
         """
         Write all the settings that can be represented as strings to an .ini
         style config string.
@@ -575,7 +567,7 @@ class SettingsManager(_SettingsCollector):
             outFile = StringIO()
         iniSettings = {'Globals':{}}
         globals = iniSettings['Globals']
-        
+
         for key, theSetting in self.settings().items():
             if type(theSetting) in convertableToStrTypes:
                 globals[key] = theSetting
@@ -584,14 +576,14 @@ class SettingsManager(_SettingsCollector):
                 for subKey, subSetting in theSetting.items():
                     if type(subSetting) in convertableToStrTypes:
                         iniSettings[key][subKey] = subSetting
-        
+
         sections = iniSettings.keys()
         sections.sort()
         outFileWrite = outFile.write # short-cut namebinding for efficiency
         for section in sections:
-            outFileWrite("[" + section + "]\n")
+            outFileWrite(f"[{section}" + "]\n")
             sectDict = iniSettings[section]
-            
+
             keys = sectDict.keys()
             keys.sort()
             for key in keys:
@@ -603,14 +595,13 @@ class SettingsManager(_SettingsCollector):
         return outFile
         
     def writeConfigFile(self, path):
-        
+
         """Write all the settings that can be represented as strings to an .ini
         style config file."""
         
         path = self.normalizePath(path)
-        fp = open(path,'w')
-        self._createConfigFile(fp)
-        fp.close()
+        with open(path,'w') as fp:
+            self._createConfigFile(fp)
         
     def getConfigString(self):
         """Return a string with the settings in .ini file format."""

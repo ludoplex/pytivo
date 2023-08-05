@@ -61,7 +61,7 @@ class PlugIn:
         self._owner=owner
         if self.DBG_LINE not in owner.debug_flags:
             owner.debug_flags.append(self.DBG_LINE)
-        self.DEBUG('Plugging %s into %s'%(self,self._owner),'start')
+        self.DEBUG(f'Plugging {self} into {self._owner}', 'start')
         if owner.__dict__.has_key(self.__class__.__name__):
             return self.DEBUG('Plugging ignored: another instance already plugged.','error')
         self._old_owners_methods=[]
@@ -74,9 +74,8 @@ class PlugIn:
  
     def PlugOut(self):
         """ Unregister all our staff from main instance and detach from it. """
-        self.DEBUG('Plugging %s out of %s.'%(self,self._owner),'stop')
-        ret = None
-        if self.__class__.__dict__.has_key('plugout'): ret = self.plugout()
+        self.DEBUG(f'Plugging {self} out of {self._owner}.', 'stop')
+        ret = self.plugout() if self.__class__.__dict__.has_key('plugout') else None
         self._owner.debug_flags.remove(self.DBG_LINE)
         for method in self._exported_methods: del self._owner.__dict__[method.__name__]
         for method in self._old_owners_methods: self._owner.__dict__[method.__name__]=method
@@ -229,8 +228,7 @@ class Client(CommonClient):
             if self.Bind.Bind(resource):
                 self.connected+='+sasl'
                 return 'sasl'
-        else:
-            if self.__dict__.has_key('SASL'): self.SASL.PlugOut()
+        elif self.__dict__.has_key('SASL'): self.SASL.PlugOut()
 
     def getRoster(self):
         """ Return the Roster instance, previously plugging it in and
@@ -265,10 +263,7 @@ class Component(CommonClient):
         self.bind=bind
         self.route=route
         self.xcp=xcp
-        if domains:
-            self.domains=domains
-        else:
-            self.domains=[server]
+        self.domains = domains if domains else [server]
     
     def connect(self,server=None,proxy=None):
         """ This will connect to the server, and if the features tag is found then set
@@ -311,11 +306,10 @@ class Component(CommonClient):
                 return
             self.SASL.auth()
             while self.SASL.startsasl=='in-process' and self.Process(1): pass
-            if self.SASL.startsasl=='success':
-                self.dobind(sasl=True)
-                self.connected+='+sasl'
-                return 'sasl'
-            else:
+            if self.SASL.startsasl != 'success':
                 raise auth.NotAuthorized(self.SASL.startsasl)
+            self.dobind(sasl=True)
+            self.connected+='+sasl'
+            return 'sasl'
         except:
-            self.DEBUG(self.DBG,"Failed to authenticate %s"%name,'error')
+            self.DEBUG(self.DBG, f"Failed to authenticate {name}", 'error')

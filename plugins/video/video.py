@@ -126,7 +126,7 @@ class Pushable(object):
         f = urllib.urlopen('http://checkip.dyndns.org/')
         s = f.read()
         m = re.search('([\d]*\.[\d]*\.[\d]*\.[\d]*)', s)
-        return m.group(0)
+        return m[0]
 
     def Push(self, handler, query):
         try:
@@ -136,7 +136,7 @@ class Pushable(object):
             handler.send_error(404)
             return
 
-        if not tsn in config.tivos:
+        if tsn not in config.tivos:
             for key, value in config.tivos.items():
                 if value.get('name') == tsn:
                     tsn = key
@@ -150,30 +150,29 @@ class Pushable(object):
         ip = config.get_ip(tsn)
         port = config.getPort()
 
-        baseurl = 'http://%s:%s/%s' % (ip, port, container)
+        baseurl = f'http://{ip}:{port}/{container}'
         if config.getIsExternal(tsn):
-            exturl = config.get_server('externalurl')
-            if exturl:
+            if exturl := config.get_server('externalurl'):
                 if not exturl.endswith('/'):
                     exturl += '/'
                 baseurl = exturl + container
             else:
                 ip = self.readip()
-                baseurl = 'http://%s:%s/%s' % (ip, port, container)
- 
+                baseurl = f'http://{ip}:{port}/{container}'
+
         path = self.get_local_base_path(handler, query)
 
         files = query.get('File', [])
         for f in files:
-            file_path = os.path.normpath(path + '/' + f)
+            file_path = os.path.normpath(f'{path}/{f}')
             queue.append({'path': file_path, 'name': f, 'tsn': tsn,
                           'url': baseurl})
             if len(queue) == 1:
                 thread.start_new_thread(Video.process_queue, (self,))
 
-            logger.info('[%s] Queued "%s" for Push to %s' %
-                        (time.strftime('%d/%b/%Y %H:%M:%S'),
-                         unicode(file_path, 'utf-8'), tivo_name))
+            logger.info(
+                f"""[{time.strftime('%d/%b/%Y %H:%M:%S')}] Queued "{unicode(file_path, 'utf-8')}" for Push to {tivo_name}"""
+            )
 
         files = [unicode(f, 'utf-8') for f in files]
         handler.redir(PUSHED % (tivo_name, '<br>'.join(files)), 5)
@@ -322,18 +321,15 @@ class BaseVideo(Plugin):
         return count
 
     def __est_size(self, full_path, tsn='', mime=''):
-        # Size is estimated by taking audio and video bit rate adding 2%
-
         if transcode.tivo_compatible(full_path, tsn, mime)[0]:
             return os.path.getsize(unicode(full_path, 'utf-8'))
-        else:
-            # Must be re-encoded
-            audioBPS = config.getMaxAudioBR(tsn) * 1000
-            #audioBPS = config.strtod(config.getAudioBR(tsn))
-            videoBPS = transcode.select_videostr(full_path, tsn)
-            bitrate =  audioBPS + videoBPS
-            return int((self.__duration(full_path) / 1000) *
-                       (bitrate * 1.02 / 8))
+        # Must be re-encoded
+        audioBPS = config.getMaxAudioBR(tsn) * 1000
+        #audioBPS = config.strtod(config.getAudioBR(tsn))
+        videoBPS = transcode.select_videostr(full_path, tsn)
+        bitrate =  audioBPS + videoBPS
+        return int((self.__duration(full_path) / 1000) *
+                   (bitrate * 1.02 / 8))
 
     def metadata_full(self, full_path, tsn='', mime='', mtime=None):
         data = {}
@@ -345,7 +341,7 @@ class BaseVideo(Plugin):
              config.getTivoWidth >= 1280)):
             data['showingBits'] = '4096'
 
-        data.update(metadata.basic(full_path, mtime))
+        data |= metadata.basic(full_path, mtime)
         if full_path[-5:].lower() == '.tivo':
             data.update(metadata.from_tivo(full_path))
         if full_path[-4:].lower() == '.wtv':
@@ -366,14 +362,21 @@ class BaseVideo(Plugin):
                 transcode_options = transcode.transcode(True, full_path,
                                                         '', tsn, mime)
             data['vHost'] = (
-                ['TRANSCODE=%s, %s' % (['YES', 'NO'][compatible], reason)] +
-                ['SOURCE INFO: '] +
-                ["%s=%s" % (k, v)
-                 for k, v in sorted(vInfo.items(), reverse=True)] +
-                ['TRANSCODE OPTIONS: '] +
-                transcode_options +
-                ['SOURCE FILE: ', os.path.basename(full_path)]
-            )
+                (
+                    (
+                        (
+                            [f"TRANSCODE={['YES', 'NO'][compatible]}, {reason}"]
+                            + ['SOURCE INFO: ']
+                        )
+                        + [
+                            f"{k}={v}"
+                            for k, v in sorted(vInfo.items(), reverse=True)
+                        ]
+                    )
+                    + ['TRANSCODE OPTIONS: ']
+                )
+                + transcode_options
+            ) + ['SOURCE FILE: ', os.path.basename(full_path)]
 
         now = datetime.utcnow()
         if 'time' in data:
@@ -383,7 +386,7 @@ class BaseVideo(Plugin):
                 try:
                     now = datetime.utcfromtimestamp(mtime)
                 except:
-                    logger.warning('Bad file time on ' + full_path)
+                    logger.warning(f'Bad file time on {full_path}')
             elif data['time'].lower() == 'oad':
                     now = isodt(data['originalAirDate'])
             else:
@@ -400,13 +403,16 @@ class BaseVideo(Plugin):
         hours = min / 60
         min = min % 60
 
-        data.update({'time': now.isoformat(),
-                     'startTime': now.isoformat(),
-                     'stopTime': (now + duration_delta).isoformat(),
-                     'size': self.__est_size(full_path, tsn, mime),
-                     'duration': duration,
-                     'iso_duration': ('P%sDT%sH%sM%sS' % 
-                          (duration_delta.days, hours, min, sec))})
+        data.update(
+            {
+                'time': now.isoformat(),
+                'startTime': now.isoformat(),
+                'stopTime': (now + duration_delta).isoformat(),
+                'size': self.__est_size(full_path, tsn, mime),
+                'duration': duration,
+                'iso_duration': f'P{duration_delta.days}DT{hours}H{min}M{sec}S',
+            }
+        )
 
         return data
 
@@ -452,7 +458,7 @@ class BaseVideo(Plugin):
             video['title'] = os.path.basename(f.name)
             video['is_dir'] = f.isdir
             if video['is_dir']:
-                video['small_path'] = subcname + '/' + video['name']
+                video['small_path'] = f'{subcname}/' + video['name']
                 video['total_items'] = self.__total_items(f.name)
             else:
                 if len(files) == 1 or f.name in transcode.info_cache:
@@ -539,10 +545,7 @@ class BaseVideo(Plugin):
                 extra = align - extra
             return extra
 
-        if mime == 'video/x-tivo-mpeg-ts':
-            flag = 45
-        else:
-            flag = 13
+        flag = 45 if mime == 'video/x-tivo-mpeg-ts' else 13
         details = self.get_details_xml(tsn, path)
         ld = len(details)
         chunk = details + '\0' * (pad(ld, 4) + 4)
@@ -561,7 +564,7 @@ class BaseVideo(Plugin):
         tsn = handler.headers.getheader('tsn', '')
         f = query['File'][0]
         path = self.get_local_path(handler, query)
-        file_path = os.path.normpath(path + '/' + f)
+        file_path = os.path.normpath(f'{path}/{f}')
 
         details = self.get_details_xml(tsn, file_path)
 
@@ -573,10 +576,7 @@ class Video(BaseVideo, Pushable):
 class VideoDetails(DictMixin):
 
     def __init__(self, d=None):
-        if d:
-            self.d = d
-        else:
-            self.d = {}
+        self.d = d if d else {}
 
     def __getitem__(self, key):
         if key not in self.d:

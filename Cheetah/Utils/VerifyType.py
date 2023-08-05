@@ -32,7 +32,7 @@ def _errmsg(argname, ltd, errmsgExtra=''):
     """
     if errmsgExtra:
         errmsgExtra = '\n' + errmsgExtra
-    return "arg '%s' must be %s%s" % (argname, ltd, errmsgExtra)
+    return f"arg '{argname}' must be {ltd}{errmsgExtra}"
 
 
 ##################################################

@@ -293,7 +293,7 @@ class TLS(PlugIn):
         self.DEBUG("TLS supported by remote server. Requesting TLS start.",'ok')
         self._owner.RegisterHandlerOnce('proceed',self.StartTLSHandler,xmlns=NS_TLS)
         self._owner.RegisterHandlerOnce('failure',self.StartTLSHandler,xmlns=NS_TLS)
-        self._owner.Connection.send('<starttls xmlns="%s"/>'%NS_TLS)
+        self._owner.Connection.send(f'<starttls xmlns="{NS_TLS}"/>')
         raise NodeProcessed
 
     def pending_data(self,timeout=0):

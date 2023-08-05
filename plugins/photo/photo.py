@@ -132,9 +132,8 @@ class Photo(Plugin):
 
     def parse_exif(self, exif, rot, attrs):
         # Capture date
-        if attrs and not 'odate' in attrs:
-            date = exif_date(exif)
-            if date:
+        if attrs and 'odate' not in attrs:
+            if date := exif_date(exif):
                 year, month, day, hour, minute, second = (int(x)
                     for x in date.groups())
                 if year:
@@ -146,11 +145,7 @@ class Photo(Plugin):
         if attrs and 'exifrot' in attrs:
             rot = (rot + attrs['exifrot']) % 360
         else:
-            if exif[6] == 'I':
-                orient = exif_orient_i(exif)
-            else:
-                orient = exif_orient_m(exif)
-
+            orient = exif_orient_i(exif) if exif[6] == 'I' else exif_orient_m(exif)
             if orient:
                 exifrot = {
                     1:   0, 
@@ -229,15 +224,13 @@ class Photo(Plugin):
                                   stdout=subprocess.PIPE,
                                   stdin=subprocess.PIPE)
 
-        # wait configured # of seconds: if ffmpeg is not back give up
-        limit = config.getFFmpegWait()
-        if limit:
-            for i in xrange(limit * 20):
+        if limit := config.getFFmpegWait():
+            for _ in xrange(limit * 20):
                 time.sleep(.05)
-                if not ffmpeg.poll() == None:
+                if ffmpeg.poll() is not None:
                     break
 
-            if ffmpeg.poll() == None:
+            if ffmpeg.poll() is None:
                 kill(ffmpeg)
                 return False, 'FFmpeg timed out'
         else:
@@ -247,13 +240,11 @@ class Photo(Plugin):
         output = err_tmp.read()
         err_tmp.close()
 
-        x = ffmpeg_size.search(output)
-        if x:
-            width = int(x.group(1))
-            height = int(x.group(2))
-        else:
+        if not (x := ffmpeg_size.search(output)):
             return False, "Couldn't parse size"
 
+        width = int(x.group(1))
+        height = int(x.group(2))
         return True, (width, height)
 
     def get_image_ffmpeg(self, path, width, height, pshape, rot, attrs):
@@ -281,10 +272,10 @@ class Photo(Plugin):
 
         width, height = self.new_size(oldw, oldh, width, height, pshape)
 
-        if rot == 270:
-            filters = 'transpose=1,'
-        elif rot == 180:
+        if rot == 180:
             filters = 'hflip,vflip,'
+        elif rot == 270:
+            filters = 'transpose=1,'
         elif rot == 90:
             filters = 'transpose=2,'
         else:
@@ -305,15 +296,13 @@ class Photo(Plugin):
         ffmpeg = subprocess.Popen(cmd, stdout=jpeg_tmp,
                                   stdin=subprocess.PIPE)
 
-        # wait configured # of seconds: if ffmpeg is not back give up
-        limit = config.getFFmpegWait()
-        if limit:
-            for i in xrange(limit * 20):
+        if limit := config.getFFmpegWait():
+            for _ in xrange(limit * 20):
                 time.sleep(.05)
-                if not ffmpeg.poll() == None:
+                if ffmpeg.poll() is not None:
                     break
 
-            if ffmpeg.poll() == None:
+            if ffmpeg.poll() is None:
                 kill(ffmpeg)
                 return False, 'FFmpeg timed out'
         else:
@@ -343,11 +332,7 @@ class Photo(Plugin):
             attrs = None
 
         # Set rotation
-        if attrs:
-            rot = attrs['rotation']
-        else:
-            rot = 0
-
+        rot = attrs['rotation'] if attrs else 0
         if 'Rotation' in query:
             rot = (rot - int(query['Rotation'][0])) % 360
             if attrs:
@@ -449,6 +434,7 @@ class Photo(Plugin):
 
     def get_files(self, handler, query, filterFunction):
 
+
         class FileData:
             def __init__(self, name, isdir):
                 self.name = name
@@ -503,10 +489,7 @@ class Photo(Plugin):
             return cmp(x.mdate, y.mdate)
 
         def dir_sort(x, y):
-            if x.isdir == y.isdir:
-                return sortfunc(x, y)
-            else:
-                return y.isdir - x.isdir
+            return sortfunc(x, y) if x.isdir == y.isdir else y.isdir - x.isdir
 
         path = self.get_local_path(handler, query)
 
@@ -540,7 +523,7 @@ class Photo(Plugin):
         # Sort it
         seed = ''
         start = ''
-        sortby = query.get('SortOrder', ['Normal'])[0] 
+        sortby = query.get('SortOrder', ['Normal'])[0]
         if 'Random' in sortby:
             if 'RandomSeed' in query:
                 seed = query['RandomSeed'][0]

@@ -30,16 +30,19 @@ class ASFInfo(object):
         self.channels = 0
 
     def pprint(self):
-        s = "Windows Media Audio %d bps, %s Hz, %d channels, %.2f seconds" % (
-            self.bitrate, self.sample_rate, self.channels, self.length)
-        return s
+        return "Windows Media Audio %d bps, %s Hz, %d channels, %.2f seconds" % (
+            self.bitrate,
+            self.sample_rate,
+            self.channels,
+            self.length,
+        )
 
 
 class ASFTags(list, DictMixin, Metadata):
     """Dictionary containing ASF attributes."""
 
     def pprint(self):
-        return "\n".join(["%s=%s" % (k, v) for k, v in self])
+        return "\n".join([f"{k}={v}" for k, v in self])
 
     def __getitem__(self, key):
         """A list of values for the key.
@@ -48,15 +51,17 @@ class ASFTags(list, DictMixin, Metadata):
         work.
 
         """
-        values = [value for (k, value) in self if k == key]
-        if not values: raise KeyError, key
-        else: return values
+        if values := [value for (k, value) in self if k == key]:
+            return values
+        else:
+            if not values: raise KeyError, key
 
     def __delitem__(self, key):
         """Delete all values associated with the key."""
-        to_delete = filter(lambda x: x[0] == key, self)
-        if not to_delete: raise KeyError, key
-        else: map(self.remove, to_delete)
+        if to_delete := filter(lambda x: x[0] == key, self):
+            map(self.remove, to_delete)
+        else:
+            if not to_delete: raise KeyError, key
 
     def __contains__(self, key):
         """Return true if the key has any values."""
@@ -110,10 +115,7 @@ class ASFBaseAttribute(object):
                  stream=None, **kwargs):
         self.language = language
         self.stream = stream
-        if data:
-            self.value = self.parse(data, **kwargs)
-        else:
-            self.value = value
+        self.value = self.parse(data, **kwargs) if data else value
 
     def data_size(self):
         raise NotImplementedError
@@ -135,19 +137,13 @@ class ASFBaseAttribute(object):
 
     def render_m(self, name):
         name = name.encode("utf-16-le") + "\x00\x00"
-        if self.TYPE == 2:
-            data = self._render(dword=False)
-        else:
-            data = self._render()
+        data = self._render(dword=False) if self.TYPE == 2 else self._render()
         return (struct.pack("<HHHHI", 0, self.stream or 0, len(name),
                             self.TYPE, len(data)) + name + data)
 
     def render_ml(self, name):
         name = name.encode("utf-16-le") + "\x00\x00"
-        if self.TYPE == 2:
-            data = self._render(dword=False)
-        else:
-            data = self._render()
+        data = self._render(dword=False) if self.TYPE == 2 else self._render()
         return (struct.pack("<HHHHI", self.language or 0, self.stream or 0,
                             len(name), self.TYPE, len(data)) + name + data)
 
@@ -187,7 +183,7 @@ class ASFByteArrayAttribute(ASFBaseAttribute):
         return len(self.value)
 
     def __str__(self):
-        return "[binary data (%s bytes)]" % len(self.value)
+        return f"[binary data ({len(self.value)} bytes)]"
 
     def __cmp__(self, other):
         return cmp(str(self), other)
@@ -412,10 +408,8 @@ class ContentDescriptionObject(BaseObject):
     def render(self, asf):
         def render_text(name):
             value = asf.tags.get(name, [])
-            if value:
-                return value[0].encode("utf-16-le") + "\x00\x00"
-            else:
-                return ""
+            return value[0].encode("utf-16-le") + "\x00\x00" if value else ""
+
         texts = map(render_text, _standard_attribute_names)
         data = struct.pack("<HHHHH", *map(len, texts)) + "".join(texts)
         return self.GUID + struct.pack("<Q", 24 + len(data)) + data
@@ -428,9 +422,9 @@ class ExtendedContentDescriptionObject(BaseObject):
     def parse(self, asf, data, fileobj, size):
         super(ExtendedContentDescriptionObject, self).parse(asf, data, fileobj, size)
         asf.extended_content_description_obj = self
-        num_attributes, = struct.unpack("<H", data[0:2])
+        num_attributes, = struct.unpack("<H", data[:2])
         pos = 2
-        for i in range(num_attributes):
+        for _ in range(num_attributes):
             name_length, = struct.unpack("<H", data[pos:pos+2])
             pos += 2
             name = data[pos:pos+name_length].decode("utf-16-le").strip("\x00")
@@ -483,10 +477,7 @@ class HeaderExtensionObject(BaseObject):
         self.objects = []
         while datapos < datasize:
             guid, size = struct.unpack("<16sQ", data[22+datapos:22+datapos+24])
-            if guid in _object_types:
-                obj = _object_types[guid]()
-            else:
-                obj = UnknownObject(guid)
+            obj = _object_types[guid]() if guid in _object_types else UnknownObject(guid)
             obj.parse(asf, data[22+datapos+24:22+datapos+size], fileobj, size)
             self.objects.append(obj)
             datapos += size
@@ -506,9 +497,9 @@ class MetadataObject(BaseObject):
     def parse(self, asf, data, fileobj, size):
         super(MetadataObject, self).parse(asf, data, fileobj, size)
         asf.metadata_obj = self
-        num_attributes, = struct.unpack("<H", data[0:2])
+        num_attributes, = struct.unpack("<H", data[:2])
         pos = 2
-        for i in range(num_attributes):
+        for _ in range(num_attributes):
             (reserved, stream, name_length, value_type,
              value_length) = struct.unpack("<HHHHI", data[pos:pos+12])
             pos += 12
@@ -536,9 +527,9 @@ class MetadataLibraryObject(BaseObject):
     def parse(self, asf, data, fileobj, size):
         super(MetadataLibraryObject, self).parse(asf, data, fileobj, size)
         asf.metadata_library_obj = self
-        num_attributes, = struct.unpack("<H", data[0:2])
+        num_attributes, = struct.unpack("<H", data[:2])
         pos = 2
-        for i in range(num_attributes):
+        for _ in range(num_attributes):
             (language, stream, name_length, value_type,
              value_length) = struct.unpack("<HHHHI", data[pos:pos+12])
             pos += 12
@@ -664,20 +655,17 @@ class ASF(FileType):
 
         self.size, self.num_objects = struct.unpack("<QL", header[16:28])
         self.objects = []
-        for i in range(self.num_objects):
+        for _ in range(self.num_objects):
             self.__read_object(fileobj)
 
     def __read_object(self, fileobj):
         guid, size = struct.unpack("<16sQ", fileobj.read(24))
-        if guid in _object_types:
-            obj = _object_types[guid]()
-        else:
-            obj = UnknownObject(guid)
+        obj = _object_types[guid]() if guid in _object_types else UnknownObject(guid)
         data = fileobj.read(size - 24)
         obj.parse(self, data, fileobj, size)
         self.objects.append(obj)
 
-    def score(filename, fileobj, header):
+    def score(self, fileobj, header):
         return header.startswith(HeaderObject.GUID) * 2
     score = staticmethod(score)
 

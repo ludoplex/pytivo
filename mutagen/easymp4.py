@@ -32,8 +32,7 @@ class EasyMP4Tags(DictMixin, Metadata):
     filename = property(lambda s: s.__mp4.filename,
                         lambda s, fn: setattr(s.__mp4, 'filename', fn))
 
-    def RegisterKey(cls, key,
-                    getter=None, setter=None, deleter=None, lister=None):
+    def RegisterKey(self, key, getter=None, setter=None, deleter=None, lister=None):
         """Register a new key mapping.
 
         A key mapping is four functions, a getter, setter, deleter,
@@ -52,13 +51,13 @@ class EasyMP4Tags(DictMixin, Metadata):
         """
         key = key.lower()
         if getter is not None:
-            cls.Get[key] = getter
+            self.Get[key] = getter
         if setter is not None:
-            cls.Set[key] = setter
+            self.Set[key] = setter
         if deleter is not None:
-            cls.Delete[key] = deleter
+            self.Delete[key] = deleter
         if lister is not None:
-            cls.List[key] = lister
+            self.List[key] = lister
     RegisterKey = classmethod(RegisterKey)
 
     def RegisterTextKey(cls, key, atomid):
@@ -137,7 +136,7 @@ class EasyMP4Tags(DictMixin, Metadata):
             EasyMP4Tags.RegisterFreeformKey(
                 "musicbrainz_artistid", "MusicBrainz Artist Id")
         """
-        atomid = "----:%s:%s" % (mean, name)
+        atomid = f"----:{mean}:{name}"
 
         def getter(tags, key):
             return [s.decode("utf-8", "replace") for s in tags[atomid]]
@@ -191,8 +190,7 @@ class EasyMP4Tags(DictMixin, Metadata):
         strings = []
         for key in sorted(self.keys()):
             values = self[key]
-            for value in values:
-                strings.append("%s=%s" % (key, value))
+            strings.extend(f"{key}={value}" for value in values)
         return "\n".join(strings)
 
 for atomid, key in {

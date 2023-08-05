@@ -62,7 +62,8 @@ class NonSASL(PlugIn):
             seq=query.getTagData('sequence')
             self.DEBUG("Performing zero-k authentication",'ok')
             hash = sha.new(sha.new(self.password).hexdigest()+token).hexdigest()
-            for foo in xrange(int(seq)): hash = sha.new(hash).hexdigest()
+            for _ in xrange(int(seq)):
+                hash = sha.new(hash).hexdigest()
             query.setTagData('hash',hash)
             method='0k'
         else:
@@ -74,14 +75,24 @@ class NonSASL(PlugIn):
             self.DEBUG('Sucessfully authenticated with remove host.','ok')
             owner.User=self.user
             owner.Resource=self.resource
-            owner._registered_name=owner.User+'@'+owner.Server+'/'+owner.Resource
+            owner._registered_name = f'{owner.User}@{owner.Server}/{owner.Resource}'
             return method
         self.DEBUG('Authentication failed!','error')
 
     def authComponent(self,owner):
         """ Authenticate component. Send handshake stanza and wait for result. Returns "ok" on success. """
         self.handshake=0
-        owner.send(Node(NS_COMPONENT_ACCEPT+' handshake',payload=[sha.new(owner.Dispatcher.Stream._document_attrs['id']+self.password).hexdigest()]))
+        owner.send(
+            Node(
+                f'{NS_COMPONENT_ACCEPT} handshake',
+                payload=[
+                    sha.new(
+                        owner.Dispatcher.Stream._document_attrs['id']
+                        + self.password
+                    ).hexdigest()
+                ],
+            )
+        )
         owner.RegisterHandler('handshake',self.handshakeHandler,xmlns=NS_COMPONENT_ACCEPT)
         while not self.handshake:
             self.DEBUG("waiting on handshake",'notify')
@@ -91,8 +102,7 @@ class NonSASL(PlugIn):
 
     def handshakeHandler(self,disp,stanza):
         """ Handler for registering in dispatcher for accepting transport authentication. """
-        if stanza.getName()=='handshake': self.handshake=1
-        else: self.handshake=-1
+        self.handshake = 1 if stanza.getName()=='handshake' else -1
 
 class SASL(PlugIn):
     """ Implements SASL authentication. """
@@ -131,16 +141,23 @@ class SASL(PlugIn):
             self.startsasl='not-supported'
             self.DEBUG('SASL not supported by server','error')
             return
-        mecs=[]
-        for mec in feats.getTag('mechanisms',namespace=NS_SASL).getTags('mechanism'):
-            mecs.append(mec.getData())
+        mecs = [
+            mec.getData()
+            for mec in feats.getTag('mechanisms', namespace=NS_SASL).getTags(
+                'mechanism'
+            )
+        ]
         self._owner.RegisterHandler('challenge',self.SASLHandler,xmlns=NS_SASL)
         self._owner.RegisterHandler('failure',self.SASLHandler,xmlns=NS_SASL)
         self._owner.RegisterHandler('success',self.SASLHandler,xmlns=NS_SASL)
         if "DIGEST-MD5" in mecs:
             node=Node('auth',attrs={'xmlns':NS_SASL,'mechanism':'DIGEST-MD5'})
         elif "PLAIN" in mecs:
-            sasl_data='%s\x00%s\x00%s'%(self.username+'@'+self._owner.Server,self.username,self.password)
+            sasl_data = '%s\x00%s\x00%s' % (
+                f'{self.username}@{self._owner.Server}',
+                self.username,
+                self.password,
+            )
             node=Node('auth',attrs={'xmlns':NS_SASL,'mechanism':'PLAIN'},payload=[base64.encodestring(sasl_data)])
         else:
             self.startsasl='failure'
@@ -231,19 +248,17 @@ class Bind(PlugIn):
             self.bound='failure'
             self.DEBUG('Server does not requested binding.','error')
             return
-        if feats.getTag('session',namespace=NS_SESSION): self.session=1
-        else: self.session=-1
+        self.session = 1 if feats.getTag('session',namespace=NS_SESSION) else -1
         self.bound=[]
 
     def Bind(self,resource=None):
         """ Perform binding. Use provided resource name or random (if not provided). """
         while self.bound is None and self._owner.Process(1): pass
-        if resource: resource=[Node('resource',payload=[resource])]
-        else: resource=[]
+        resource = [Node('resource',payload=[resource])] if resource else []
         resp=self._owner.SendAndWaitForResponse(Protocol('iq',typ='set',payload=[Node('bind',attrs={'xmlns':NS_BIND},payload=resource)]))
         if isResultNode(resp):
             self.bound.append(resp.getTag('bind').getTagData('jid'))
-            self.DEBUG('Successfully bound %s.'%self.bound[-1],'ok')
+            self.DEBUG(f'Successfully bound {self.bound[-1]}.', 'ok')
             jid=JID(resp.getTag('bind').getTagData('jid'))
             self._owner.User=jid.getNode()
             self._owner.Resource=jid.getResource()
@@ -255,7 +270,8 @@ class Bind(PlugIn):
             else:
                 self.DEBUG('Session open failed.','error')
                 self.session=0
-        elif resp: self.DEBUG('Binding failed: %s.'%resp.getTag('error'),'error')
+        elif resp:
+            self.DEBUG(f"Binding failed: {resp.getTag('error')}.", 'error')
         else:
             self.DEBUG('Binding failed: timeout expired.','error')
             return ''
@@ -292,17 +308,13 @@ class ComponentBind(PlugIn):
             self.bound='failure'
             self.DEBUG('Server does not requested binding.','error')
             return
-        if feats.getTag('session',namespace=NS_SESSION): self.session=1
-        else: self.session=-1
+        self.session = 1 if feats.getTag('session',namespace=NS_SESSION) else -1
         self.bound=[]
 
     def Bind(self,domain=None):
         """ Perform binding. Use provided domain name (if not provided). """
         while self.bound is None and self._owner.Process(1): pass
-        if self.sasl:
-            xmlns = NS_COMPONENT_1
-        else:
-            xmlns = None
+        xmlns = NS_COMPONENT_1 if self.sasl else None
         self.bindresponse = None
         ttl = dispatcher.DefaultTimeout
         self._owner.RegisterHandler('bind',self.BindHandler,xmlns=xmlns)
@@ -311,7 +323,7 @@ class ComponentBind(PlugIn):
         self._owner.UnregisterHandler('bind',self.BindHandler,xmlns=xmlns)
         resp=self.bindresponse
         if resp and resp.getAttr('error'):
-            self.DEBUG('Binding failed: %s.'%resp.getAttr('error'),'error')
+            self.DEBUG(f"Binding failed: {resp.getAttr('error')}.", 'error')
         elif resp:
             self.DEBUG('Successfully bound.','ok')
             return 'ok'
@@ -321,4 +333,3 @@ class ComponentBind(PlugIn):
 
     def BindHandler(self,conn,bind):
         self.bindresponse = bind
-        pass

@@ -92,7 +92,7 @@ class Plugin(object):
            list of strings, OR a list of objects with a 'name' attribute.
         """
         def no_anchor(handler, anchor):
-            handler.server.logger.warning('Anchor not found: ' + anchor)
+            handler.server.logger.warning(f'Anchor not found: {anchor}')
 
         totalFiles = len(files)
         index = 0
@@ -109,13 +109,10 @@ class Plugin(object):
                     anchor = anchor.replace(bs, '/', 1)
                 anchor = unquote(anchor)
                 anchor = anchor.replace(os.path.sep + cname, local_base_path, 1)
-                if not '://' in anchor:
+                if '://' not in anchor:
                     anchor = os.path.normpath(anchor)
 
-                if type(files[0]) == str:
-                    filenames = files
-                else:
-                    filenames = [x.name for x in files]
+                filenames = files if type(files[0]) == str else [x.name for x in files]
                 try:
                     index = filenames.index(anchor, last_start)
                 except ValueError:
@@ -142,6 +139,7 @@ class Plugin(object):
 
     def get_files(self, handler, query, filterFunction=None,
                   force_alpha=False, allow_recurse=True):
+
 
         class FileData:
             def __init__(self, name, isdir):
@@ -209,10 +207,7 @@ class Plugin(object):
                 dc[path] = filelist
 
         def dir_sort(x, y):
-            if x.isdir == y.isdir:
-                return name_sort(x, y)
-            else:
-                return y.isdir - x.isdir
+            return name_sort(x, y) if x.isdir == y.isdir else y.isdir - x.isdir
 
         def name_sort(x, y):
             return cmp(x.name, y.name)

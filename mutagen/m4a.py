@@ -96,14 +96,14 @@ class Atom(object):
         else:
             fileobj.seek(self.offset + self.length, 0)
 
-    def render(name, data):
+    def render(self, data):
         """Render raw atom data."""
         # this raises OverflowError if Py_ssize_t can't handle the atom data
         size = len(data) + 8
         if size <= 0xFFFFFFFF:
-            return struct.pack(">I4s", size, name) + data
+            return struct.pack(">I4s", size, self) + data
         else:
-            return struct.pack(">I4sQ", 1, name, size + 8) + data
+            return struct.pack(">I4sQ", 1, self, size + 8) + data
     render = staticmethod(render)
 
     def __getitem__(self, remaining):
@@ -126,11 +126,15 @@ class Atom(object):
         if self.children is None:
             return "<%s name=%r length=%r offset=%r>" % (
                 klass, self.name, self.length, self.offset)
-        else:
-            children = "\n".join([" " + line for child in self.children
-                                  for line in repr(child).splitlines()])
-            return "<%s name=%r length=%r offset=%r\n%s>" % (
-                klass, self.name, self.length, self.offset, children)
+        children = "\n".join(
+            [
+                f" {line}"
+                for child in self.children
+                for line in repr(child).splitlines()
+            ]
+        )
+        return "<%s name=%r length=%r offset=%r\n%s>" % (
+            klass, self.name, self.length, self.offset, children)
 
 class Atoms(object):
     """Root atoms in a given file.
@@ -156,8 +160,7 @@ class Atoms(object):
         atoms.
         """
         path = [self]
-        for name in names:
-            path.append(path[-1][name,])
+        path.extend(path[-1][name,] for name in names)
         return path[1:]
 
     def __getitem__(self, names):
@@ -172,7 +175,7 @@ class Atoms(object):
             if child.name == names[0]:
                 return child[names[1:]]
         else:
-            raise KeyError, "%s not found" % names[0]
+            raise (KeyError, f"{names[0]} not found")
 
     def __repr__(self):
         return "\n".join([repr(child) for child in self.atoms])
@@ -210,8 +213,8 @@ class M4ATags(DictProxy, Metadata):
             parse = self.__atoms.get(atom.name, (M4ATags.__parse_text,))[0]
             parse(self, atom, data)
 
-    def __key_sort(item1, item2):
-        (key1, v1) = item1
+    def __key_sort(self, item2):
+        (key1, v1) = self
         (key2, v2) = item2
         # iTunes always writes the tags in order of "relevance", try
         # to copy it as closely as possible.
@@ -246,15 +249,7 @@ class M4ATags(DictProxy, Metadata):
 
             moov = atoms["moov"]
 
-            if moov != atoms.atoms[-1]:
-                # "Free" the old moov block. Something in the mdat
-                # block is not happy when its offset changes and it
-                # won't play back. So, rather than try to figure that
-                # out, just move the moov atom to the end of the file.
-                offset = self.__move_moov(fileobj, moov)
-            else:
-                offset = 0
-
+            offset = self.__move_moov(fileobj, moov) if moov != atoms.atoms[-1] else 0
             try:
                 path = atoms.path("moov", "udta", "meta", "ilst")
             except KeyError:
@@ -327,7 +322,7 @@ class M4ATags(DictProxy, Metadata):
             # they actually end up in the file.
             pass
         else:
-            self["%s:%s:%s" % (atom.name, mean, name)] = value
+            self[f"{atom.name}:{mean}:{name}"] = value
     def __render_freeform(self, key, value):
         dummy, mean, name = key.split(":", 2)
         mean = struct.pack(">I4sI", len(mean) + 12, "mean", 0) + mean
@@ -415,7 +410,8 @@ class M4ATags(DictProxy, Metadata):
         values = []
         for key, value in self.iteritems():
             key = key.decode('latin1')
-            try: values.append("%s=%s" % (key, value))
+            try:
+                values.append(f"{key}={value}")
             except UnicodeDecodeError:
                 values.append("%s=[%d bytes of data]" % (key, len(value)))
         return "\n".join(values)
@@ -490,7 +486,7 @@ class M4A(FileType):
     def add_tags(self):
         self.tags = M4ATags()
 
-    def score(filename, fileobj, header):
+    def score(self, fileobj, header):
         return ("ftyp" in header) + ("mp4" in header)
     score = staticmethod(score)
 

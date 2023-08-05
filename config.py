@@ -66,9 +66,8 @@ def reset():
             config.add_section(section)
 
 def write():
-    f = open(configs_found[-1], 'w')
-    config.write(f)
-    f.close()
+    with open(configs_found[-1], 'w') as f:
+        config.write(f)
 
 def tivos_by_ip(tivoIP):
     for key, value in tivos.items():
@@ -134,7 +133,7 @@ def get169Setting(tsn):
     if not tsn:
         return True
 
-    tsnsect = '_tivo_' + tsn
+    tsnsect = f'_tivo_{tsn}'
     if config.has_section(tsnsect):
         if config.has_option(tsnsect, 'aspect169'):
             try:
@@ -142,16 +141,13 @@ def get169Setting(tsn):
             except ValueError:
                 pass
 
-    if get169Blacklist(tsn) or get169Letterbox(tsn):
-        return False
-
-    return True
+    return not get169Blacklist(tsn) and not get169Letterbox(tsn)
 
 def getAllowedClients():
     return get_server('allowedips', '').split()
 
 def getIsExternal(tsn):
-    tsnsect = '_tivo_' + tsn
+    tsnsect = f'_tivo_{tsn}'
     if tsnsect in config.sections():
         if config.has_option(tsnsect, 'external'):
             try:
@@ -162,7 +158,7 @@ def getIsExternal(tsn):
     return False
 
 def isTsnInConfig(tsn):
-    return ('_tivo_' + tsn) in config.sections()
+    return f'_tivo_{tsn}' in config.sections()
 
 def getShares(tsn=''):
     shares = [(section, Bdict(config.items(section)))
@@ -174,7 +170,7 @@ def getShares(tsn=''):
               )
     ]
 
-    tsnsect = '_tivo_' + tsn
+    tsnsect = f'_tivo_{tsn}'
     if config.has_section(tsnsect) and config.has_option(tsnsect, 'shares'):
         # clean up leading and trailing spaces & make sure ref is valid
         tsnshares = []
@@ -201,7 +197,7 @@ def getDebug():
 
 def getOptres(tsn=None):
     try:
-        return config.getboolean('_tivo_' + tsn, 'optres')
+        return config.getboolean(f'_tivo_{tsn}', 'optres')
     except:
         try:
             return config.getboolean(get_section(tsn), 'optres')
@@ -225,13 +221,9 @@ def get_bin(fname):
             bin_paths[fname] = fpath
             return fpath
         else:
-            logger.error('Bad %s path: %s' % (fname, fpath))
+            logger.error(f'Bad {fname} path: {fpath}')
 
-    if sys.platform == 'win32':
-        fext = '.exe'
-    else:
-        fext = ''
-
+    fext = '.exe' if sys.platform == 'win32' else ''
     for path in ([os.path.join(os.path.dirname(__file__), 'bin')] +
                  os.getenv('PATH').split(os.pathsep)):
         fpath = os.path.join(path, fname + fext)
@@ -239,7 +231,7 @@ def get_bin(fname):
             bin_paths[fname] = fpath
             return fpath
 
-    logger.warn('%s not found' % fname)
+    logger.warn(f'{fname} not found')
     return None
 
 def getFFmpegWait():
@@ -255,7 +247,7 @@ def isHDtivo(tsn):  # TSNs of High Definition TiVos
     return bool(tsn and tsn[0] >= '6' and tsn[:3] != '649')
 
 def is4Ktivo(tsn):  # TSNs of 4K TiVos
-    return bool(tsn[:3] in ('849', '8F9'))
+    return tsn[:3] in ('849', '8F9')
 
 def get_ts_flag():
     return get_server('ts', 'auto').lower()
@@ -277,10 +269,7 @@ def nearest(x, list):
 def closest(x, a, b):
     da = abs(x - a)
     db = abs(x - b)
-    if da < db or (da == db and a > b):
-        return a
-    else:
-        return b
+    return a if da < db or (da == db and a > b) else b
 
 def nearestTivoHeight(height):
     return nearest(height, getValidHeights())
@@ -289,16 +278,10 @@ def nearestTivoWidth(width):
     return nearest(width, getValidWidths())
 
 def getTivoHeight(tsn):
-    if is4Ktivo(tsn):
-        return 2160
-    else:
-        return [480, 1080][isHDtivo(tsn)]
+    return 2160 if is4Ktivo(tsn) else [480, 1080][isHDtivo(tsn)]
 
 def getTivoWidth(tsn):
-    if is4Ktivo(tsn):
-        return 3840
-    else:
-        return [544, 1920][isHDtivo(tsn)]
+    return 3840 if is4Ktivo(tsn) else [544, 1920][isHDtivo(tsn)]
 
 def _trunc64(i):
     return max(int(strtod(i)) / 64000, 1) * 64
@@ -309,14 +292,13 @@ def getAudioBR(tsn=None):
         rate = '448k'
     # convert to non-zero multiple of 64 to ensure ffmpeg compatibility
     # compare audio_br to max_audio_br and return lowest
-    return str(min(_trunc64(rate), getMaxAudioBR(tsn))) + 'k'
+    return f'{str(min(_trunc64(rate), getMaxAudioBR(tsn)))}k'
 
 def _k(i):
-    return str(int(strtod(i)) / 1000) + 'k'
+    return f'{str(int(strtod(i)) / 1000)}k'
 
 def getVideoBR(tsn=None):
-    rate = get_tsn('video_br', tsn)
-    if rate:
+    if rate := get_tsn('video_br', tsn):
         return _k(rate)
     if is4Ktivo(tsn):
         return getMaxVideoBR(tsn)
@@ -324,36 +306,22 @@ def getVideoBR(tsn=None):
         return ['4096K', '16384K'][isHDtivo(tsn)]
 
 def getMaxVideoBR(tsn=None):
-    rate = get_tsn('max_video_br', tsn)
-    if rate:
-        return _k(rate)
-    return '30000k'
+    return _k(rate) if (rate := get_tsn('max_video_br', tsn)) else '30000k'
 
 def getBuffSize(tsn=None):
-    size = get_tsn('bufsize', tsn)
-    if size:
+    if size := get_tsn('bufsize', tsn):
         return _k(size)
-    if is4Ktivo(tsn):
-        return '8192k'
-    else:
-        return ['1024k', '4096k'][isHDtivo(tsn)]
+    return '8192k' if is4Ktivo(tsn) else ['1024k', '4096k'][isHDtivo(tsn)]
 
 def getMaxAudioBR(tsn=None):
-    rate = get_tsn('max_audio_br', tsn)
-    # convert to non-zero multiple of 64 for ffmpeg compatibility
-    if rate:
-        return _trunc64(rate)
-    return 448
+    return _trunc64(rate) if (rate := get_tsn('max_audio_br', tsn)) else 448
 
 def get_section(tsn):
-    if is4Ktivo(tsn):
-        return '_tivo_4K'
-    else:
-        return ['_tivo_SD', '_tivo_HD'][isHDtivo(tsn)]
+    return '_tivo_4K' if is4Ktivo(tsn) else ['_tivo_SD', '_tivo_HD'][isHDtivo(tsn)]
 
 def get_tsn(name, tsn=None, raw=False):
     try:
-        return config.get('_tivo_' + tsn, name, raw)
+        return config.get(f'_tivo_{tsn}', name, raw)
     except:
         try:
             return config.get(get_section(tsn), name, raw)
@@ -367,10 +335,6 @@ def get_tsn(name, tsn=None, raw=False):
 # For example, 2K==2000, 2Ki==2048, 2MB==16000000, 2MiB==16777216
 # Algorithm: http://svn.mplayerhq.hu/ffmpeg/trunk/libavcodec/eval.c
 def strtod(value):
-    prefixes = {'y': -24, 'z': -21, 'a': -18, 'f': -15, 'p': -12,
-                'n': -9,  'u': -6,  'm': -3,  'c': -2,  'd': -1,
-                'h': 2,   'k': 3,   'K': 3,   'M': 6,   'G': 9,
-                'T': 12,  'P': 15,  'E': 18,  'Z': 21,  'Y': 24}
     p = re.compile(r'^(\d+)(?:([yzafpnumcdhkKMGTPEZY])(i)?)?([Bb])?$')
     m = p.match(value)
     if not m:
@@ -379,6 +343,10 @@ def strtod(value):
     if prefix is None:
         value = float(coef)
     else:
+        prefixes = {'y': -24, 'z': -21, 'a': -18, 'f': -15, 'p': -12,
+                    'n': -9,  'u': -6,  'm': -3,  'c': -2,  'd': -1,
+                    'h': 2,   'k': 3,   'K': 3,   'M': 6,   'G': 9,
+                    'T': 12,  'P': 15,  'E': 18,  'Z': 21,  'Y': 24}
         exponent = float(prefixes[prefix])
         if power == 'i':
             # Use powers of 2

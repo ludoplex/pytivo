@@ -42,15 +42,11 @@ class Filter(object):
         """Pass Unicode strings through unmolested, unless an encoding is specified.
         """
         if isinstance(val, unicode):
-            if encoding:
-                filtered = val.encode(encoding)
-            else:
-                filtered = val
+            return val.encode(encoding) if encoding else val
         elif val is None:
-            filtered = ''
+            return ''
         else:
-            filtered = str(val)
-        return filtered
+            return str(val)
 
 RawOrEncodedUnicode = Filter
 
@@ -73,12 +69,11 @@ class EncodeUnicode(Filter):
         >>> print t
         """
         if isinstance(val, unicode):
-            filtered = val.encode(encoding)
+            return val.encode(encoding)
         elif val is None:
-            filtered = ''
+            return ''
         else:
-            filtered = str(val)
-        return filtered
+            return str(val)
 
 class MaxLen(Filter):
     def filter(self, val, **kw):

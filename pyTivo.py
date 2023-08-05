@@ -49,15 +49,15 @@ def setup(in_service=False):
         httpserver.TivoHTTPHandler)
 
     logger = logging.getLogger('pyTivo')
-    logger.info('Last modified: ' + last_date())
-    logger.info('Python: ' + platform.python_version())
-    logger.info('System: ' + platform.platform())
+    logger.info(f'Last modified: {last_date()}')
+    logger.info(f'Python: {platform.python_version()}')
+    logger.info(f'System: {platform.platform()}')
 
     for section, settings in config.getShares():
         httpd.add_container(section, settings)
 
     b = beacon.Beacon()
-    b.add_service('TiVoMediaServer:%s/http' % port)
+    b.add_service(f'TiVoMediaServer:{port}/http')
     b.start()
     if 'listen' in config.getBeaconAddresses():
         b.listen()

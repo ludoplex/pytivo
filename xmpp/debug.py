@@ -46,28 +46,24 @@ import os
 
 import types
 
-if os.environ.has_key('TERM'):
-    colors_enabled=True
-else:
-    colors_enabled=False
-
-color_none         = chr(27) + "[0m"
-color_black        = chr(27) + "[30m"
-color_red          = chr(27) + "[31m"
-color_green        = chr(27) + "[32m"
-color_brown        = chr(27) + "[33m"
-color_blue         = chr(27) + "[34m"
-color_magenta      = chr(27) + "[35m"
-color_cyan         = chr(27) + "[36m"
-color_light_gray   = chr(27) + "[37m"
-color_dark_gray    = chr(27) + "[30;1m"
-color_bright_red   = chr(27) + "[31;1m"
-color_bright_green = chr(27) + "[32;1m"
-color_yellow       = chr(27) + "[33;1m"
-color_bright_blue  = chr(27) + "[34;1m"
-color_purple       = chr(27) + "[35;1m"
-color_bright_cyan  = chr(27) + "[36;1m"
-color_white        = chr(27) + "[37;1m"
+colors_enabled = bool(os.environ.has_key('TERM'))
+color_none = f"{chr(27)}[0m"
+color_black = f"{chr(27)}[30m"
+color_red = f"{chr(27)}[31m"
+color_green = f"{chr(27)}[32m"
+color_brown = f"{chr(27)}[33m"
+color_blue = f"{chr(27)}[34m"
+color_magenta = f"{chr(27)}[35m"
+color_cyan = f"{chr(27)}[36m"
+color_light_gray = f"{chr(27)}[37m"
+color_dark_gray = f"{chr(27)}[30;1m"
+color_bright_red = f"{chr(27)}[31;1m"
+color_bright_green = f"{chr(27)}[32;1m"
+color_yellow = f"{chr(27)}[33;1m"
+color_bright_blue = f"{chr(27)}[34;1m"
+color_purple = f"{chr(27)}[35;1m"
+color_bright_cyan = f"{chr(27)}[36;1m"
+color_white = f"{chr(27)}[37;1m"
 
 
 """
@@ -232,18 +228,11 @@ class Debug:
         
         if self.validate_flags:
             self._validate_flag( flag )
-            
+
         if not self.is_active(flag):
             return
-        if prefix:
-            pre = prefix
-        else:
-            pre = self.prefix
-        if sufix:
-            suf = sufix
-        else:
-            suf = self.sufix
-
+        pre = prefix if prefix else self.prefix
+        suf = sufix if sufix else self.sufix
         if self.time_stamp == 2:
             output = '%s%s ' % ( pre,
                                  time.strftime('%b %d %H:%M:%S',
@@ -256,16 +245,16 @@ class Debug:
                                  )
         else:
             output = pre
-            
+
         if self.flag_show:
             if flag:
-                output = '%s%s%s' % ( output, flag, self.flag_show )
+                output = f'{output}{flag}{self.flag_show}'
             else:
                 # this call uses the global default,
                 # dont print "None", just show the separator
-                output = '%s %s' % ( output, self.flag_show )
+                output = f'{output} {self.flag_show}'
 
-        output = '%s%s%s' % ( output, msg, suf )
+        output = f'{output}{msg}{suf}'
         if lf:
             # strip/add lf if needed
             last_char = output[-1]
@@ -279,12 +268,9 @@ class Debug:
             # unicode strikes again ;)
             s=u''
             for i in range(len(output)):
-                if ord(output[i]) < 128:
-                    c = output[i]
-                else:
-                    c = '?'
+                c = output[i] if ord(output[i]) < 128 else '?'
                 s=s+c
-            self._fh.write( '%s%s%s' % ( pre, s, suf ))
+            self._fh.write(f'{pre}{s}{suf}')
         self._fh.flush()
             
                 
@@ -296,12 +282,11 @@ class Debug:
             return 0
         if not flag or flag in self.active:
             return 1
-        else:
-            # check for multi flag type:
-            if type( flag ) in ( type(()), type([]) ):
-                for s in flag:
-                    if s in self.active:
-                        return 1
+        # check for multi flag type:
+        if type( flag ) in ( type(()), type([]) ):
+            for s in flag:
+                if s in self.active:
+                    return 1
         return 0
 
     
@@ -318,7 +303,7 @@ class Debug:
                 if t not in self.debug_flags:
                     sys.stderr.write('Invalid debugflag given: %s\n' % t )
                 ok_flags.append( t )
-                
+
             self.active = ok_flags
             r = 1
         else:
@@ -327,11 +312,11 @@ class Debug:
                 flags = active_flags.split(',')
             except:
                 self.show( '***' )
-                self.show( '*** Invalid debug param given: %s' % active_flags )
+                self.show(f'*** Invalid debug param given: {active_flags}')
                 self.show( '*** please correct your param!' )
                 self.show( '*** due to this, full debuging is enabled' )
                 self.active = self.debug_flags
-            
+
             for f in flags:
                 s = f.strip()
                 ok_flags.append( s )
@@ -379,8 +364,8 @@ class Debug:
         'verify that flag is defined.'
         if flags:
             for f in self._as_one_list( flags ):
-                if not f in self.debug_flags:
-                    msg2 = '%s' % f
+                if f not in self.debug_flags:
+                    msg2 = f'{f}'
                     raise 'Invalid debugflag given', msg2
 
     def _remove_dupe_flags( self ):

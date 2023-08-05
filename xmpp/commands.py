@@ -63,7 +63,7 @@ class Commands(PlugIn):
         """Removes handlers from the session"""
         # unPlug from the session and the disco manager
         self._owner.UnregisterHandler('iq',self._CommandHandler,ns=NS_COMMANDS)
-        for jid in self._handlers:
+        for _ in self._handlers:
             self._browser.delDiscoHandler(self._DiscoHandler,node=NS_COMMANDS)
 
     def _CommandHandler(self,conn,request):
@@ -94,25 +94,25 @@ class Commands(PlugIn):
         """The internal method to process service discovery requests"""
         # This is the disco manager handler.
         if typ == 'items':
-            # We must:
-            #    Generate a list of commands and return the list
-            #    * This handler does not handle individual commands disco requests.
-            # Pseudo:
-            #   Enumerate the 'item' disco of each command for the specified jid
-            #   Build responce and send
-            #   To make this code easy to write we add an 'list' disco type, it returns a tuple or 'none' if not advertised
-            list = []
             items = []
             jid = str(request.getTo())
             # Get specific jid based results
             if self._handlers.has_key(jid):
-                for each in self._handlers[jid].keys():
-                    items.append((jid,each))
+                items.extend((jid, each) for each in self._handlers[jid].keys())
             else:
                 # Get generic results
-                for each in self._handlers[''].keys():
-                    items.append(('',each))
-            if items != []:
+                items.extend(('', each) for each in self._handlers[''].keys())
+            if not items:
+                conn.send(Error(request,ERR_ITEM_NOT_FOUND))
+            else:
+                # We must:
+                #    Generate a list of commands and return the list
+                #    * This handler does not handle individual commands disco requests.
+                # Pseudo:
+                #   Enumerate the 'item' disco of each command for the specified jid
+                #   Build responce and send
+                #   To make this code easy to write we add an 'list' disco type, it returns a tuple or 'none' if not advertised
+                list = []
                 for each in items:
                     i = self._handlers[each[0]][each[1]]['disco'](conn,request,'list')
                     if i != None:
@@ -121,8 +121,6 @@ class Commands(PlugIn):
                 if request.getQuerynode(): iq.setQuerynode(request.getQuerynode())
                 iq.setQueryPayload(list)
                 conn.send(iq)
-            else:
-                conn.send(Error(request,ERR_ITEM_NOT_FOUND))
             raise NodeProcessed
         elif typ == 'info':
             return {'ids':[{'category':'automation','type':'command-list'}],'features':[]}
@@ -153,11 +151,10 @@ class Commands(PlugIn):
             raise NameError,'Jid not found'
         if not self._handlers[jid].has_key(name):
             raise NameError, 'Command not found'
-        else:
-            #Do disco removal here
-            command = self.getCommand(name,jid)['disco']
-            del self._handlers[jid][name]
-            self._browser.delDiscoHandler(command,node=name,jid=jid)
+        #Do disco removal here
+        command = self.getCommand(name,jid)['disco']
+        del self._handlers[jid][name]
+        self._browser.delDiscoHandler(command,node=name,jid=jid)
 
     def getCommand(self,name,jid=''):
         """Returns the command tuple"""
@@ -227,7 +224,7 @@ class Command_Handler_Prototype(PlugIn):
             action = request.getTagAttr('command','action')
         except:
             action = None
-        if action == None: action = 'execute'
+        if action is None: action = 'execute'
         # Check session is in session list
         if self.sessions.has_key(session):
             if self.sessions[session]['jid']==request.getFrom():
@@ -278,7 +275,7 @@ class TestCommand(Command_Handler_Prototype):
             session = request.getTagAttr('command','sessionid')
         except:
             session = None
-        if session == None:
+        if session is None:
             session = self.getSessionID()
             self.sessions[session]={'jid':request.getFrom(),'actions':{'cancel':self.cmdCancel,'next':self.cmdSecondStage,'execute':self.cmdSecondStage},'data':{'type':None}}
         # As this is the first stage we only send a form

@@ -41,18 +41,17 @@ class WebVideo(BaseVideo):
             port=xmpp_info['port'],
             debug=[],
         )
-        self.__logger.debug('Connecting to %s:%s' % (xmpp_info['server'],
-                                                     xmpp_info['port']))
+        self.__logger.debug(f"Connecting to {xmpp_info['server']}:{xmpp_info['port']}")
         cl.connect()
         cl.RegisterHandler('message', self.processMessage)
-        self.__logger.debug('Loging in as %s/pyTivo' % xmpp_info['username'])
+        self.__logger.debug(f"Loging in as {xmpp_info['username']}/pyTivo")
         cl.auth(user=jid.getNode(), password=config.get_server('tivo_password'),
                 resource='pyTivo')
 
         cl.sendInitPresence(requestRoster=0)
 
         for user_name in xmpp_info['presence_list']:
-            self.__logger.debug('Sending presence to %s' % user_name)
+            self.__logger.debug(f'Sending presence to {user_name}')
             jid = xmpp.protocol.JID(user_name)
             cl.sendPresence(jid)
 
@@ -61,7 +60,7 @@ class WebVideo(BaseVideo):
         t.start()
 
     def startWorkerThreads(self):
-        for i in range(self.download_thread_num):
+        for _ in range(self.download_thread_num):
             t = threading.Thread(target=self.processDlRequest,
                                  name='webvideo downloader')
             t.setDaemon(True)
@@ -98,8 +97,8 @@ class WebVideo(BaseVideo):
         self.in_progress_lock.acquire()
         try:
             for request in m.getDownloadRequests():
-                if not request['bodyOfferId'] in self.in_progress:
-                    self.__logger.debug('Adding request to queue, %s' % request)
+                if request['bodyOfferId'] not in self.in_progress:
+                    self.__logger.debug(f'Adding request to queue, {request}')
                     self.in_progress[request['bodyOfferId']] = True
                     self.work_queue.put(request)
         finally:
@@ -113,13 +112,14 @@ class WebVideo(BaseVideo):
             for share_name, settings in config.getShares():
                 if settings['type'] == 'webvideo':
                     break
-            self.__logger.debug('Processing request: %s' % data)
+            self.__logger.debug(f'Processing request: {data}')
 
             path = settings['path']
 
-            file_name = os.path.join(path, '%s-%s' % 
-                                     (data['bodyOfferId'].replace(':', '-'),
-                                      data['url'].split('/')[-1]))
+            file_name = os.path.join(
+                path,
+                f"{data['bodyOfferId'].replace(':', '-')}-{data['url'].split('/')[-1]}",
+            )
 
             status = self.downloadFile(data['url'], file_name)
             mime = 'video/mpeg'
@@ -139,13 +139,13 @@ class WebVideo(BaseVideo):
                 ip = config.get_ip()
                 port = config.getPort()
 
-                data['url'] = ('http://%s:%s' % (ip, port) +
-                               urllib.quote('/%s/%s' % (share_name,
-                                            os.path.basename(file_name))))
+                data[
+                    'url'
+                ] = f"http://{ip}:{port}{urllib.quote(f'/{share_name}/{os.path.basename(file_name)}')}"
                 data['duration'] = file_info['duration'] / 1000
                 data['size'] = file_info['size']
 
-            self.__logger.debug('Complete request: %s' % data)
+            self.__logger.debug(f'Complete request: {data}')
 
             m = mind.getMind()
             m.completeDownloadRequest(data, status, mime)
@@ -190,5 +190,5 @@ class WebVideo(BaseVideo):
     def send_file(self, handler, path, query):
         Video.send_file(self, handler, path, query)
         if os.path.exists(path):
-            self.__logger.info('Deleting file %s' % path)
+            self.__logger.info(f'Deleting file {path}')
             os.remove(path)

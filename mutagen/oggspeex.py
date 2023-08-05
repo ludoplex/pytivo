@@ -112,7 +112,7 @@ class OggSpeex(OggFileType):
     _Error = OggSpeexHeaderError
     _mimes = ["audio/x-speex"]
 
-    def score(filename, fileobj, header):
+    def score(self, fileobj, header):
         return (header.startswith("OggS") * ("Speex   " in header))
     score = staticmethod(score)
 

@@ -78,14 +78,13 @@ def get_color(value):
 def human_size(raw):
     raw = float(raw)
     if raw > GB:
-        tsize = '%.2f GB' % (raw / GB)
+        return '%.2f GB' % (raw / GB)
     elif raw > MB:
-        tsize = '%.2f MB' % (raw / MB)
+        return '%.2f MB' % (raw / MB)
     elif raw > KB:
-        tsize = '%.2f KB' % (raw / KB)
+        return '%.2f KB' % (raw / KB)
     else:
-        tsize = '%d Bytes' % raw
-    return tsize
+        return '%d Bytes' % raw
 
 def tag_data(element, tag):
     for name in tag.split('/'):
@@ -97,16 +96,14 @@ def tag_data(element, tag):
                 break
         if not found:
             return ''
-    if not element.firstChild:
-        return ''
-    return element.firstChild.data
+    return '' if not element.firstChild else element.firstChild.data
 
 def _vtag_data(element, tag):
     for name in tag.split('/'):
-        new_element = element.getElementsByTagName(name)
-        if not new_element:
+        if new_element := element.getElementsByTagName(name):
+            element = new_element[0]
+        else:
             return []
-        element = new_element[0]
     elements = element.getElementsByTagName('element')
     return [x.firstChild.data for x in elements if x.firstChild]
 
@@ -120,8 +117,7 @@ def _vtag_data_alternate(element, tag):
     return [x.firstChild.data for x in elements if x.firstChild]
 
 def _tag_value(element, tag):
-    item = element.getElementsByTagName(tag)
-    if item:
+    if item := element.getElementsByTagName(tag):
         value = item[0].attributes['value'].value
         return int(value[0])
 
@@ -166,7 +162,7 @@ def from_moov(full_path):
                 episodestr = key[epstart+1:]
                 if (seasonstr.isdigit() and episodestr.isdigit()):
                     if len(episodestr) < 2:
-                        episodestr = '0' + episodestr
+                        episodestr = f'0{episodestr}'
                     metadata['episodeNumber'] = seasonstr+episodestr
         elif key == 'tvsn':
             #put together tvsn and tves to make episodeNumber
@@ -178,18 +174,16 @@ def from_moov(full_path):
                     tvesValue = tvesValue[0]
                 tves = str(tvesValue)
                 if len(tves) < 2:
-                    tves = '0' + tves
+                    tves = f'0{tves}'
             metadata['episodeNumber'] = tvsn+tves
-        # These keys begin with the copyright symbol \xA9
         elif key == '\xa9day':
-            if isTVShow :
+            if isTVShow:
                 if len(value) == 4:
                     value += '-01-01T16:00:00Z'
                 metadata['originalAirDate'] = value
-            else:
-                if len(value) >= 4:
-                    metadata['movieYear'] = value[:4]
-            #metadata['time'] = value
+            elif len(value) >= 4:
+                metadata['movieYear'] = value[:4]
+                    #metadata['time'] = value
         elif key in ['\xa9gen', 'gnre']:
             for k in ('vProgramGenre', 'vSeriesGenre'):
                 if k in metadata:
@@ -202,12 +196,10 @@ def from_moov(full_path):
             else:
                 metadata['title'] = value
 
-        # Description in desc, cmt, and/or ldes tags. Keep the longest.
         elif key in ['desc', '\xa9cmt', 'ldes'] and len(value) > len_desc:
             metadata['description'] = value
             len_desc = len(value)
 
-        # A common custom "reverse DNS format" tag
         elif (key == '----:com.apple.iTunes:iTunEXTC' and
               ('us-tv' in value or 'mpaa' in value)):
             rating = value.split("|")[1].upper()
@@ -216,8 +208,6 @@ def from_moov(full_path):
             elif rating in MPAA_RATINGS and 'mpaa' in value:
                 metadata['mpaaRating'] = MPAA_RATINGS[rating]
 
-        # Actors, directors, producers, AND screenwriters may be in a long
-        # embedded XML plist.
         elif (key == '----:com.apple.iTunes:iTunMOVI' and
               'plistlib' in sys.modules):
             items = {'cast': 'vActor', 'directors': 'vDirector',
@@ -303,9 +293,6 @@ def from_dvrms(full_path):
     return metadata
 
 def from_eyetv(full_path):
-    keys = {'TITLE': 'title', 'SUBTITLE': 'episodeTitle',
-            'DESCRIPTION': 'description', 'YEAR': 'movieYear',
-            'EPISODENUM': 'episodeNumber'}
     metadata = {}
     path = os.path.dirname(unicode(full_path, 'utf-8'))
     eyetvp = [x for x in os.listdir(path) if x.endswith('.eyetvp')][0]
@@ -316,6 +303,9 @@ def from_eyetv(full_path):
         return metadata
     if 'epg info' in eyetv:
         info = eyetv['epg info']
+        keys = {'TITLE': 'title', 'SUBTITLE': 'episodeTitle',
+                'DESCRIPTION': 'description', 'YEAR': 'movieYear',
+                'EPISODENUM': 'episodeNumber'}
         for key in keys:
             if info[key]:
                 metadata[keys[key]] = info[key]
@@ -355,12 +345,14 @@ def from_text(full_path):
             break
         search_paths.append(os.path.join(ptmp, 'default.txt'))
 
-    search_paths.append(os.path.join(path, title) + '.properties')
+    search_paths.append(f'{os.path.join(path, title)}.properties')
     search_paths.reverse()
 
-    search_paths += [full_path + '.txt',
-                     os.path.join(path, '.meta', 'default.txt'),
-                     os.path.join(path, '.meta', name) + '.txt']
+    search_paths += [
+        f'{full_path}.txt',
+        os.path.join(path, '.meta', 'default.txt'),
+        os.path.join(path, '.meta', name) + '.txt',
+    ]
 
     for metafile in search_paths:
         if os.path.exists(metafile):
@@ -368,7 +360,7 @@ def from_text(full_path):
             for line in file(metafile, 'U'):
                 if line.startswith(BOM):
                     line = line[3:]
-                if line.strip().startswith('#') or not sep in line:
+                if line.strip().startswith('#') or sep not in line:
                     continue
                 key, value = [x.strip() for x in line.split(sep, 1)]
                 if not key or not value:
@@ -410,7 +402,7 @@ def basic(full_path, mtime=None):
                 'originalAirDate': originalAirDate.isoformat()}
     ext = ext.lower()
     if ext in ['.mp4', '.m4v', '.mov']:
-        metadata.update(from_moov(full_path))
+        metadata |= from_moov(full_path)
     elif ext in ['.dvr-ms', '.asf', '.wmv']:
         metadata.update(from_dvrms(full_path))
     elif 'plistlib' in sys.modules and base_path.endswith('.eyetv'):
@@ -433,8 +425,7 @@ def from_container(xmldoc):
     details = xmldoc.getElementsByTagName('Details')[0]
 
     for key in keys:
-        data = tag_data(details, keys[key])
-        if data:
+        if data := tag_data(details, keys[key]):
             if key == 'description':
                 data = data.replace(TRIBUNE_CR, '').replace(ROVI_CR, '')
                 if data.endswith(' *'):
@@ -470,8 +461,7 @@ def from_details(xml):
              'time': 'time'}
 
     for item in items:
-        data = tag_data(showing, items[item])
-        if data:
+        if data := tag_data(showing, items[item]):
             if item == 'description':
                 data = data.replace(TRIBUNE_CR, '').replace(ROVI_CR, '')
                 if data.endswith(' *'):
@@ -483,22 +473,18 @@ def from_details(xml):
               'vHost', 'vProducer', 'vWriter']
 
     for item in vItems:
-        data = _vtag_data(program, item)
-        if data:
+        if data := _vtag_data(program, item):
             metadata[item] = data
 
-    sb = showing.getElementsByTagName('showingBits')
-    if sb:
+    if sb := showing.getElementsByTagName('showingBits'):
         metadata['showingBits'] = sb[0].attributes['value'].value
 
     #for tag in ['starRating', 'mpaaRating', 'colorCode']:
     for tag in ['starRating', 'mpaaRating']:
-        value = _tag_value(program, tag)
-        if value:
+        if value := _tag_value(program, tag):
             metadata[tag] = value
 
-    rating = _tag_value(showing, 'tvRating')
-    if rating:
+    if rating := _tag_value(showing, 'tvRating'):
         metadata['tvRating'] = rating
 
     return metadata
@@ -511,11 +497,10 @@ def _nfo_vitems(source, metadata):
               'vActor': 'actor/name'}
 
     for key in vItems:
-        data = _vtag_data_alternate(source, vItems[key])
-        if data:
+        if data := _vtag_data_alternate(source, vItems[key]):
             metadata.setdefault(key, [])
             for dat in data:
-                if not dat in metadata[key]:
+                if dat not in metadata[key]:
                     metadata[key].append(dat)
 
     if 'vGenre' in metadata:
@@ -570,8 +555,7 @@ def _from_tvshow_nfo(tvshow_nfo_path):
         return metadata
 
     for item in items:
-        data = tag_data(tvshow, items[item])
-        if data:
+        if data := tag_data(tvshow, items[item]):
             metadata[item] = data
 
     metadata = _nfo_vitems(tvshow, metadata)
@@ -598,7 +582,7 @@ def _from_episode_nfo(nfo_path, xmldoc):
         path = basepath
         tv_nfo = os.path.join(path, 'tvshow.nfo')
         if os.path.exists(tv_nfo):
-            metadata.update(_from_tvshow_nfo(tv_nfo))
+            metadata |= _from_tvshow_nfo(tv_nfo)
             break
 
     episode = xmldoc.getElementsByTagName('episodedetails')
@@ -609,8 +593,7 @@ def _from_episode_nfo(nfo_path, xmldoc):
 
     metadata['isEpisode'] = 'true'
     for item in items:
-        data = tag_data(episode, items[item])
-        if data:
+        if data := tag_data(episode, items[item]):
             metadata[item] = data
 
     season = tag_data(episode, 'displayseason')
@@ -650,8 +633,7 @@ def _from_movie_nfo(xmldoc):
     metadata['isEpisode'] = 'false'
 
     for item in items:
-        data = tag_data(movie, items[item])
-        if data:
+        if data := tag_data(movie, items[item]):
             metadata[item] = data
 
     metadata['movieYear'] = "%04d" % int(metadata.get('movieYear', 0))
@@ -665,7 +647,7 @@ def from_nfo(full_path):
 
     metadata = nfo_cache[full_path] = {}
 
-    nfo_path = "%s.nfo" % os.path.splitext(full_path)[0]
+    nfo_path = f"{os.path.splitext(full_path)[0]}.nfo"
     if not os.path.exists(nfo_path):
         return metadata
 
@@ -675,7 +657,7 @@ def from_nfo(full_path):
 
     if xmldoc.getElementsByTagName('episodedetails'):
         # it's an episode
-        metadata.update(_from_episode_nfo(nfo_path, xmldoc))
+        metadata |= _from_episode_nfo(nfo_path, xmldoc)
     elif xmldoc.getElementsByTagName('movie'):
         # it's a movie
         metadata.update(_from_movie_nfo(xmldoc))
@@ -689,8 +671,7 @@ def from_nfo(full_path):
     for key, mapping in [('mpaaRating', MPAA_RATINGS),
                          ('tvRating', TV_RATINGS)]:
         if key in metadata:
-            rating = mapping.get(metadata[key], None)
-            if rating:
+            if rating := mapping.get(metadata[key], None):
                 metadata[key] = rating
             else:
                 del metadata[key]
@@ -709,14 +690,12 @@ def _tdcat_bin(tdcat_path, full_path, tivo_mak):
 def _tdcat_py(full_path, tivo_mak):
     xml_data = {}
 
-    tfile = open(full_path, 'rb')
-    header = tfile.read(16)
-    offset, chunks = struct.unpack('>LH', header[10:])
-    rawdata = tfile.read(offset - 16)
-    tfile.close()
-
+    with open(full_path, 'rb') as tfile:
+        header = tfile.read(16)
+        offset, chunks = struct.unpack('>LH', header[10:])
+        rawdata = tfile.read(offset - 16)
     count = 0
-    for i in xrange(chunks):
+    for _ in xrange(chunks):
         chunk_size, data_size, id, enc = struct.unpack('>LLHH',
             rawdata[count:count + 12])
         count += 12
@@ -729,7 +708,7 @@ def _tdcat_py(full_path, tivo_mak):
     if chunk['enc']:
         xml_key = xml_data[3]['data']
 
-        hexmak = hashlib.md5('tivo:TiVo DVR:' + tivo_mak).hexdigest()
+        hexmak = hashlib.md5(f'tivo:TiVo DVR:{tivo_mak}').hexdigest()
         key = hashlib.sha1(hexmak + xml_key).digest()[:16] + '\0\0\0\0'
 
         turkey = hashlib.sha1(key[:17]).digest()
@@ -775,21 +754,20 @@ def dump(output, metadata):
         if type(value) == list:
             for item in value:
                 output.write('%s: %s\n' % (key, item.encode('utf-8')))
+        elif key in HUMAN and value in HUMAN[key]:
+            output.write('%s: %s\n' % (key, HUMAN[key][value]))
         else:
-            if key in HUMAN and value in HUMAN[key]:
-                output.write('%s: %s\n' % (key, HUMAN[key][value]))
-            else:
-                output.write('%s: %s\n' % (key, value.encode('utf-8')))
+            output.write('%s: %s\n' % (key, value.encode('utf-8')))
 
-if __name__ == '__main__':
-    if len(sys.argv) > 1:
-        metadata = {}
+if len(sys.argv) > 1:
+    if __name__ == '__main__':
         config.init([])
         logging.basicConfig()
         fname = force_utf8(sys.argv[1])
         ext = os.path.splitext(fname)[1].lower()
+        metadata = {}
         if ext == '.tivo':
-            metadata.update(from_tivo(fname))
+            metadata |= from_tivo(fname)
         elif ext in ['.mp4', '.m4v', '.mov']:
             metadata.update(from_moov(fname))
         elif ext in ['.dvr-ms', '.asf', '.wmv']:

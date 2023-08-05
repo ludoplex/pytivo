@@ -157,7 +157,7 @@ class Browser(PlugIn):
                 # elif TYR=='info': # returns info dictionary of the same format as shown above
                 # else: # this case is impossible for now.
         """
-        self.DEBUG('Registering handler %s for "%s" node->%s'%(handler,jid,node), 'info')
+        self.DEBUG(f'Registering handler {handler} for "{jid}" node->{node}', 'info')
         node,key=self._traversePath(node,jid,1)
         node[key]=handler
 
@@ -185,16 +185,19 @@ class Browser(PlugIn):
             to handle the request. Used internally.
         """
         node=request.getQuerynode()
-        if node:
-            nodestr=node
-        else:
-            nodestr='None'
+        nodestr = node if node else 'None'
         handler=self.getDiscoHandler(node,request.getTo())
         if not handler:
-            self.DEBUG("No Handler for request with jid->%s node->%s ns->%s"%(request.getTo().__str__().encode('utf8'),nodestr.encode('utf8'),request.getQueryNS().encode('utf8')),'error')
+            self.DEBUG(
+                f"No Handler for request with jid->{request.getTo().__str__().encode('utf8')} node->{nodestr.encode('utf8')} ns->{request.getQueryNS().encode('utf8')}",
+                'error',
+            )
             conn.send(Error(request,ERR_ITEM_NOT_FOUND))
             raise NodeProcessed
-        self.DEBUG("Handling request with jid->%s node->%s ns->%s"%(request.getTo().__str__().encode('utf8'),nodestr.encode('utf8'),request.getQueryNS().encode('utf8')),'ok')
+        self.DEBUG(
+            f"Handling request with jid->{request.getTo().__str__().encode('utf8')} node->{nodestr.encode('utf8')} ns->{request.getQueryNS().encode('utf8')}",
+            'ok',
+        )
         rep=request.buildReply('result')
         if node: rep.setQuerynode(node)
         q=rep.getTag('query')
@@ -202,14 +205,14 @@ class Browser(PlugIn):
             # handler must return list: [{jid,action,node,name}]
             if type(handler)==dict: lst=handler['items']
             else: lst=handler(conn,request,'items')
-            if lst==None:
+            if lst is None:
                 conn.send(Error(request,ERR_ITEM_NOT_FOUND))
                 raise NodeProcessed
             for item in lst: q.addChild('item',item)
         elif request.getQueryNS()==NS_DISCO_INFO:
             if type(handler)==dict: dt=handler['info']
             else: dt=handler(conn,request,'info')
-            if dt==None:
+            if dt is None:
                 conn.send(Error(request,ERR_ITEM_NOT_FOUND))
                 raise NodeProcessed
             # handler must return dictionary:

@@ -32,7 +32,7 @@ class Mind:
             source = title
 
         data = {
-            'bodyId': 'tsn:' + tsn,
+            'bodyId': f'tsn:{tsn}',
             'description': description,
             'duration': duration,
             'partnerId': 'tivo:pt.3187',
@@ -41,17 +41,16 @@ class Mind:
             'size': size,
             'source': source,
             'state': 'complete',
-            'title': title
+            'title': title,
         }
 
-        rating = metadata.get_tv(tvrating)
-        if rating:
+        if rating := metadata.get_tv(tvrating):
             data['tvRating'] = rating.lower()
 
         mtypes = {'video/mp4': 'avcL41MP4', 'video/bif': 'vc1ApL3'}
         data['encodingType'] = mtypes.get(mime, 'mpeg2ProgramStream')
 
-        data['url'] = url + '?Format=' + mime
+        data['url'] = f'{url}?Format={mime}'
 
         if subtitle:
             data['subtitle'] = subtitle
@@ -82,12 +81,10 @@ class Mind:
         offer_list = self.__bodyOfferSchedule(pc_body_id)
 
         for offer in offer_list.findall('bodyOffer'):
-            d = {}
             if offer.findtext('state') != 'scheduled':
                 continue
 
-            for n in NEEDED_VALUES:
-                d[n] = offer.findtext(n)
+            d = {n: offer.findtext(n) for n in NEEDED_VALUES}
             requests.append(d)
 
         return requests
@@ -96,7 +93,7 @@ class Mind:
         if status:
             mtypes = {'video/mp4': 'avcL41MP4', 'video/bif': 'vc1ApL3'}
             request['encodingType'] = mtypes.get(mime, 'mpeg2ProgramStream')
-            request['url'] += '?Format=' + mime
+            request['url'] += f'?Format={mime}'
             request['state'] = 'complete'
         else:
             request['state'] = 'cancelled'
@@ -136,9 +133,8 @@ class Mind:
             'cams_original_url': '/mind/mind7?type=infoGet'
         }
 
-        r =  urllib2.Request(
-            'https://%s/mind/login' % self.__mind,
-            urllib.urlencode(data)
+        r = urllib2.Request(
+            f'https://{self.__mind}/mind/login', urllib.urlencode(data)
         )
         try:
             result = self.__opener.open(r)
@@ -149,9 +145,9 @@ class Mind:
 
     def __dict_request(self, data, req):
         r = urllib2.Request(
-            'https://%s/mind/mind7?type=%s' % (self.__mind, req),
+            f'https://{self.__mind}/mind/mind7?type={req}',
             dictcode(data),
-            {'Content-Type': 'x-tivo/dict-binary'}
+            {'Content-Type': 'x-tivo/dict-binary'},
         )
         result = self.__opener.open(r)
 
@@ -167,28 +163,26 @@ class Mind:
         xml = self.__dict_request(data, 'bodyOfferModify&bodyId=' +
                                   data['bodyId'])
 
-        offer_id = xml.findtext('offerId')
-        if offer_id:
-            content_id = offer_id.replace('of','ct')
-
-            return offer_id, content_id
-        else:
+        if not (offer_id := xml.findtext('offerId')):
             raise Exception(ElementTree.tostring(xml))
+        content_id = offer_id.replace('of','ct')
+
+        return offer_id, content_id
 
     def __subscribe(self, offer_id, content_id, tsn):
         """Push the offer to the tivo"""
         data = {
-            'bodyId': 'tsn:' + tsn,
+            'bodyId': f'tsn:{tsn}',
             'idSetSource': {
                 'contentId': content_id,
                 'offerId': offer_id,
-                'type': 'singleOfferSource'
+                'type': 'singleOfferSource',
             },
             'title': 'pcBodySubscription',
-            'uiType': 'cds'
+            'uiType': 'cds',
         }
 
-        return self.__dict_request(data, 'subscribe&bodyId=tsn:' + tsn)
+        return self.__dict_request(data, f'subscribe&bodyId=tsn:{tsn}')
 
     def __bodyOfferSchedule(self, pc_body_id):
         """Get pending stuff for this pc"""
@@ -225,8 +219,9 @@ class Mind:
 
     def __bodyXmppInfoGet(self, body_id):
 
-        return self.__dict_request({'bodyId': body_id},
-                                   'bodyXmppInfoGet&bodyId=' + body_id)
+        return self.__dict_request(
+            {'bodyId': body_id}, f'bodyXmppInfoGet&bodyId={body_id}'
+        )
 
 
 def dictcode(d):
@@ -239,29 +234,19 @@ def dictcode(d):
     for k in keys:
         v = d[k]
 
-        output.append( varint( len(k) ) )
-        output.append( k )
-
+        output.extend((varint( len(k) ), k))
         if isinstance(v, dict):
-            output.append( chr(2) )
-            output.append( dictcode(v) )
-
+            output.extend((chr(2), dictcode(v)))
         else:
             if type(v) == str:
                 try:
                     v = v.decode('utf8')
                 except:
-                    if sys.platform == 'darwin':
-                        v = v.decode('macroman')
-                    else:
-                        v = v.decode('cp1252')
+                    v = v.decode('macroman') if sys.platform == 'darwin' else v.decode('cp1252')
             elif type(v) != unicode:
                 v = str(v)
             v = v.encode('utf-8')
-            output.append( chr(1) )
-            output.append( varint( len(v) ) )
-            output.append( v )
-
+            output.extend((chr(1), varint( len(v) ), v))
         output.append( chr(0) )
 
     output.append( chr(0x80) )

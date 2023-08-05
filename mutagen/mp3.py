@@ -232,11 +232,17 @@ class MP3(ID3FileType):
     _mimes = ["audio/mp3", "audio/x-mp3", "audio/mpeg", "audio/mpg",
               "audio/x-mpeg"]
 
-    def score(filename, fileobj, header):
-        filename = filename.lower()
-        return (header.startswith("ID3") * 2 + filename.endswith(".mp3") +
-                filename.endswith(".mp2") + filename.endswith(".mpg") +
-                filename.endswith(".mpeg"))
+    def score(self, fileobj, header):
+        self = self.lower()
+        return (
+            (
+                header.startswith("ID3") * 2
+                + self.endswith(".mp3")
+                + self.endswith(".mp2")
+            )
+            + self.endswith(".mpg")
+            + self.endswith(".mpeg")
+        )
     score = staticmethod(score)
 
 Open = MP3

@@ -61,8 +61,7 @@ def patchSubprocess():
     o = subprocess.Popen._make_inheritable
 
     def _make_inheritable(self, handle):
-        if not handle: return subprocess.GetCurrentProcess()
-        return o(self, handle)
+        return subprocess.GetCurrentProcess() if not handle else o(self, handle)
 
     subprocess.Popen._make_inheritable = _make_inheritable
 
@@ -326,13 +325,9 @@ class Music(Plugin):
             list_file = open(unicode(list_name, 'utf-8'))
             local_path = os.path.sep.join(list_name.split(os.path.sep)[:-1])
 
-        if ext in ('.m3u', '.pls'):
-            charset = 'cp1252'
-        else:
-            charset = 'utf-8'
-
+        charset = 'cp1252' if ext in ('.m3u', '.pls') else 'utf-8'
+        playlist = []
         if ext in ('.wpl', '.asx', '.wax', '.wvx', '.b4s'):
-            playlist = []
             for line in list_file:
                 line = unicode(line, charset).encode('utf-8')
                 if ext == '.wpl':
@@ -348,18 +343,12 @@ class Music(Plugin):
             names, titles, lengths = {}, {}, {}
             for line in list_file:
                 line = unicode(line, charset).encode('utf-8')
-                s = plsfile(line)
-                if s:
+                if s := plsfile(line):
                     names[s.group(1)] = s.group(2)
-                else:
-                    s = plstitle(line)
-                    if s:
-                        titles[s.group(1)] = s.group(2)
-                    else:
-                        s = plslength(line)
-                        if s:
-                            lengths[s.group(1)] = int(s.group(2))
-            playlist = []
+                elif s := plstitle(line):
+                    titles[s.group(1)] = s.group(2)
+                elif s := plslength(line):
+                    lengths[s.group(1)] = int(s.group(2))
             for key in names:
                 f = FileData(names[key], False)
                 if key in titles:
@@ -370,10 +359,8 @@ class Music(Plugin):
 
         else: # ext == '.m3u' or '.m3u8' or '.ram'
             duration, title = 0, ''
-            playlist = []
             for line in list_file:
-                line = unicode(line.strip(), charset).encode('utf-8')
-                if line:
+                if line := unicode(line.strip(), charset).encode('utf-8'):
                     if line.startswith('#EXTINF:'):
                         try:
                             duration, title = line[8:].split(',', 1)
@@ -392,7 +379,7 @@ class Music(Plugin):
 
         # Expand relative paths
         for i in xrange(len(playlist)):
-            if not '://' in playlist[i].name:
+            if '://' not in playlist[i].name:
                 name = playlist[i].name
                 if not os.path.isabs(name):
                     name = os.path.join(local_path, name)
@@ -412,13 +399,14 @@ class Music(Plugin):
 
     def get_files(self, handler, query, filterFunction=None):
 
+
         class SortList:
             def __init__(self, files):
                 self.files = files
                 self.unsorted = True
                 self.sortby = None
                 self.last_start = 0
- 
+
         def build_recursive_list(path, recurse=True):
             files = []
             path = unicode(path, 'utf-8')
@@ -443,10 +431,7 @@ class Music(Plugin):
 
         def dir_sort(x, y):
             if x.isdir == y.isdir:
-                if x.isplay == y.isplay:
-                    return name_sort(x, y)
-                else:
-                    return y.isplay - x.isplay
+                return name_sort(x, y) if x.isplay == y.isplay else y.isplay - x.isplay
             else:
                 return y.isdir - x.isdir
 
@@ -484,7 +469,7 @@ class Music(Plugin):
         # Sort it
         seed = ''
         start = ''
-        sortby = query.get('SortOrder', ['Normal'])[0] 
+        sortby = query.get('SortOrder', ['Normal'])[0]
         if 'Random' in sortby:
             if 'RandomSeed' in query:
                 seed = query['RandomSeed'][0]
@@ -560,7 +545,7 @@ class Music(Plugin):
                     i = playlist.pop(index)
                     playlist.insert(0, i)
                 except ValueError:
-                    handler.server.logger.warning('Start not found: ' + start)
+                    handler.server.logger.warning(f'Start not found: {start}')
 
         # Trim the list
         return self.item_count(handler, query, handler.cname, playlist)

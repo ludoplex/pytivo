@@ -21,10 +21,10 @@ class ZCListener:
         self.names = names
 
     def removeService(self, server, type, name):
-        self.names.remove(name.replace('.' + type, ''))
+        self.names.remove(name.replace(f'.{type}', ''))
 
     def addService(self, server, type, name):
-        self.names.append(name.replace('.' + type, ''))
+        self.names.append(name.replace(f'.{type}', ''))
 
 class ZCBroadcast:
     def __init__(self, logger):
@@ -44,11 +44,8 @@ class ZCBroadcast:
             except:
                 continue
             if ct.startswith('x-container/'):
-                if 'video' in ct:
-                    platform = PLATFORM_VIDEO
-                else:
-                    platform = PLATFORM_MAIN
-                logger.info('Registering: %s' % section)
+                platform = PLATFORM_VIDEO if 'video' in ct else PLATFORM_MAIN
+                logger.info(f'Registering: {section}')
                 self.share_names.append(section)
                 desc = {'path': SHARE_TEMPLATE % quote(section),
                         'platform': platform, 'protocol': 'http',
@@ -60,9 +57,15 @@ class ZCBroadcast:
                     count += 1
                     title = '%s [%d]' % (section, count)
                     self.renamed[section] = title
-                info = zeroconf.ServiceInfo('_%s._tcp.local.' % tt,
-                    '%s._%s._tcp.local.' % (title, tt),
-                    address, port, 0, 0, desc)
+                info = zeroconf.ServiceInfo(
+                    f'_{tt}._tcp.local.',
+                    f'{title}._{tt}._tcp.local.',
+                    address,
+                    port,
+                    0,
+                    0,
+                    desc,
+                )
                 self.rz.registerService(info)
                 self.share_info.append(info)
 
@@ -85,8 +88,7 @@ class ZCBroadcast:
 
         # Now get the addresses -- this is the slow part
         for name in names:
-            info = self.rz.getServiceInfo(VIDS, name + '.' + VIDS)
-            if info:
+            if info := self.rz.getServiceInfo(VIDS, f'{name}.{VIDS}'):
                 tsn = info.properties.get('TSN')
                 if config.get_server('togo_all'):
                     tsn = info.properties.get('tsn', tsn)
@@ -101,7 +103,7 @@ class ZCBroadcast:
         return names
 
     def shutdown(self):
-        self.logger.info('Unregistering: %s' % ' '.join(self.share_names))
+        self.logger.info(f"Unregistering: {' '.join(self.share_names)}")
         for info in self.share_info:
             self.rz.unregisterService(info)
         self.rz.close()
@@ -140,14 +142,16 @@ class Beacon:
         return ';'.join(self.services)
 
     def format_beacon(self, conntype, services=True):
-        beacon = ['tivoconnect=1',
-                  'method=%s' % conntype,
-                  'identity={%s}' % config.getGUID(),
-                  'machine=%s' % socket.gethostname(),
-                  'platform=%s' % self.platform]
+        beacon = [
+            'tivoconnect=1',
+            f'method={conntype}',
+            'identity={%s}' % config.getGUID(),
+            f'machine={socket.gethostname()}',
+            f'platform={self.platform}',
+        ]
 
         if services:
-            beacon.append('services=' + self.format_services())
+            beacon.append(f'services={self.format_services()}')
         else:
             beacon.append('services=TiVoMediaServer:0/http')
 
@@ -181,10 +185,10 @@ class Beacon:
     def recv_bytes(self, sock, length):
         block = ''
         while len(block) < length:
-            add = sock.recv(length - len(block))
-            if not add:
+            if add := sock.recv(length - len(block)):
+                block += add
+            else:
                 break
-            block += add
         return block
 
     def recv_packet(self, sock):

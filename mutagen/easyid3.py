@@ -72,8 +72,7 @@ class EasyID3(DictMixin, Metadata):
     DeleteFallback = None
     ListFallback = None
     
-    def RegisterKey(cls, key,
-                    getter=None, setter=None, deleter=None, lister=None):
+    def RegisterKey(self, key, getter=None, setter=None, deleter=None, lister=None):
         """Register a new key mapping.
 
         A key mapping is four functions, a getter, setter, deleter,
@@ -92,13 +91,13 @@ class EasyID3(DictMixin, Metadata):
         """
         key = key.lower()
         if getter is not None:
-            cls.Get[key] = getter
+            self.Get[key] = getter
         if setter is not None:
-            cls.Set[key] = setter
+            self.Set[key] = setter
         if deleter is not None:
-            cls.Delete[key] = deleter
+            self.Delete[key] = deleter
         if lister is not None:
-            cls.List[key] = lister
+            self.List[key] = lister
     RegisterKey = classmethod(RegisterKey)
 
     def RegisterTextKey(cls, key, frameid):
@@ -135,7 +134,7 @@ class EasyID3(DictMixin, Metadata):
         e.g. TXXX:BARCODE.
             EasyID3.RegisterTXXXKey('barcode', 'BARCODE').        
         """
-        frameid = "TXXX:" + desc
+        frameid = f"TXXX:{desc}"
         def getter(id3, key):
             return list(id3[frameid])
 
@@ -214,8 +213,7 @@ class EasyID3(DictMixin, Metadata):
         strings = []
         for key in sorted(self.keys()):
             values = self[key]
-            for value in values:
-                strings.append("%s=%s" % (key, value))
+            strings.extend(f"{key}={value}" for value in values)
         return "\n".join(strings)
 
 Open = EasyID3
@@ -245,16 +243,14 @@ def date_delete(id3, key):
     del(id3["TDRC"])
 
 def performer_get(id3, key):
-    people = []
     wanted_role = key.split(":", 1)[1]
     try:
         mcl = id3["TMCL"]
     except KeyError:
         raise KeyError(key)
-    for role, person in mcl.people:
-        if role == wanted_role:
-            people.append(person)
-    if people:
+    if people := [
+        person for role, person in mcl.people if role == wanted_role
+    ]:
         return people
     else:
         raise KeyError(key)
@@ -268,8 +264,7 @@ def performer_set(id3, key, value):
         id3.add(mcl)
     mcl.encoding = 3
     people = [p for p in mcl.people if p[0] != wanted_role]
-    for v in value:
-        people.append((wanted_role, v))
+    people.extend((wanted_role, v) for v in value)
     mcl.people = people
 
 def performer_delete(id3, key):
@@ -291,7 +286,7 @@ def performer_list(id3, key):
     except KeyError:
         return []
     else:
-        return list(set("performer:" + p[0] for p in mcl.people))
+        return list({f"performer:{p[0]}" for p in mcl.people})
 
 def musicbrainz_trackid_get(id3, key):
     return [id3["UFID:http://musicbrainz.org"].data.decode('ascii')]
@@ -312,8 +307,7 @@ def musicbrainz_trackid_delete(id3, key):
     del(id3["UFID:http://musicbrainz.org"])
 
 def website_get(id3, key):
-    urls = [frame.url for frame in id3.getall("WOAR")]
-    if urls:
+    if urls := [frame.url for frame in id3.getall("WOAR")]:
         return urls
     else:
         raise EasyID3KeyError(key)
@@ -328,7 +322,7 @@ def website_delete(id3, key):
 
 def gain_get(id3, key):
     try:
-        frame = id3["RVA2:" + key[11:-5]]
+        frame = id3[f"RVA2:{key[11:-5]}"]
     except KeyError:
         raise EasyID3KeyError(key)
     else:
@@ -339,7 +333,7 @@ def gain_set(id3, key, value):
         raise ValueError("there must be exactly one gain value, not %r.", value)
     gain = float(value[0].split()[0])
     try:
-        frame = id3["RVA2:" + key[11:-5]]
+        frame = id3[f"RVA2:{key[11:-5]}"]
     except KeyError:
         frame = mutagen.id3.RVA2(desc=key[11:-5], gain=0, peak=0, channel=1)
         id3.add(frame)
@@ -347,18 +341,18 @@ def gain_set(id3, key, value):
 
 def gain_delete(id3, key):
     try:
-        frame = id3["RVA2:" + key[11:-5]]
+        frame = id3[f"RVA2:{key[11:-5]}"]
     except KeyError:
         pass
     else:
         if frame.peak:
             frame.gain = 0.0
         else:
-            del(id3["RVA2:" + key[11:-5]])
+            del id3[f"RVA2:{key[11:-5]}"]
 
 def peak_get(id3, key):
     try:
-        frame = id3["RVA2:" + key[11:-5]]
+        frame = id3[f"RVA2:{key[11:-5]}"]
     except KeyError:
         raise EasyID3KeyError(key)
     else:
@@ -371,7 +365,7 @@ def peak_set(id3, key, value):
     if peak >= 2 or peak < 0:
         raise ValueError("peak must be => 0 and < 2.")
     try:
-        frame = id3["RVA2:" + key[11:-5]]
+        frame = id3[f"RVA2:{key[11:-5]}"]
     except KeyError:
         frame = mutagen.id3.RVA2(desc=key[11:-5], gain=0, peak=0, channel=1)
         id3.add(frame)
@@ -379,20 +373,19 @@ def peak_set(id3, key, value):
 
 def peak_delete(id3, key):
     try:
-        frame = id3["RVA2:" + key[11:-5]]
+        frame = id3[f"RVA2:{key[11:-5]}"]
     except KeyError:
         pass
     else:
         if frame.gain:
             frame.peak = 0.0
         else:
-            del(id3["RVA2:" + key[11:-5]])
+            del id3[f"RVA2:{key[11:-5]}"]
 
 def peakgain_list(id3, key):
     keys = []
     for frame in id3.getall("RVA2"):
-        keys.append("replaygain_%s_gain" % frame.desc)
-        keys.append("replaygain_%s_peak" % frame.desc)
+        keys.extend((f"replaygain_{frame.desc}_gain", f"replaygain_{frame.desc}_peak"))
     return keys
 
 for frameid, key in {

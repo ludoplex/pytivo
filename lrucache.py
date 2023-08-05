@@ -111,9 +111,7 @@ class LRUCache(object):
             return cmp(self.atime, other.atime)
 
         def __repr__(self):
-            return "<%s %s => %s (%s)>" % \
-                   (self.__class__, self.key, self.obj, \
-                    time.asctime(time.localtime(self.atime)))
+            return f"<{self.__class__} {self.key} => {self.obj} ({time.asctime(time.localtime(self.atime))})>"
 
     def __init__(self, size=DEFAULT_SIZE):
         # Check arguments
@@ -145,7 +143,7 @@ class LRUCache(object):
         else:
             # size may have been reset, so we loop
             overage = len(self.__heap) - self.size + 1
-            for i in xrange(overage):
+            for _ in xrange(overage):
                 lru = heappop(self.__heap)
                 del self.__dict[lru.key]
             node = self.__Node(key, obj, time.time())
@@ -155,21 +153,19 @@ class LRUCache(object):
     def __getitem__(self, key):
         if not self.__dict.has_key(key):
             raise CacheKeyError(key)
-        else:
-            node = self.__dict[key]
-            node.atime = time.time()
-            heapify(self.__heap)
-            return node.obj
+        node = self.__dict[key]
+        node.atime = time.time()
+        heapify(self.__heap)
+        return node.obj
 
     def __delitem__(self, key):
         if not self.__dict.has_key(key):
             raise CacheKeyError(key)
-        else:
-            node = self.__dict[key]
-            del self.__dict[key]
-            self.__heap.remove(node)
-            heapify(self.__heap)
-            return node.obj
+        node = self.__dict[key]
+        del self.__dict[key]
+        self.__heap.remove(node)
+        heapify(self.__heap)
+        return node.obj
 
     def __iter__(self):
         copy = self.__heap[:]
@@ -183,7 +179,7 @@ class LRUCache(object):
         # automagically shrink heap on resize
         if name == 'size':
             overage = len(self.__heap) - value
-            for i in xrange(overage):
+            for _ in xrange(overage):
                 lru = heappop(self.__heap)
                 del self.__dict[lru.key]
 
@@ -196,9 +192,8 @@ class LRUCache(object):
         'stale', such as caching file or network resource contents."""
         if not self.__dict.has_key(key):
             raise CacheKeyError(key)
-        else:
-            node = self.__dict[key]
-            return node.mtime
+        node = self.__dict[key]
+        return node.mtime
 
 if __name__ == "__main__":
     cache = LRUCache(25)

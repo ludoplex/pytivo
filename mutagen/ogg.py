@@ -143,8 +143,7 @@ class OggPage(object):
         lacing_data = "".join(lacing_data)
         if not self.complete and lacing_data.endswith("\x00"):
             lacing_data = lacing_data[:-1]
-        data.append(chr(len(lacing_data)))
-        data.append(lacing_data)
+        data.extend((chr(len(lacing_data)), lacing_data))
         data.extend(self.packets)
         data = "".join(data)
 
@@ -153,8 +152,7 @@ class OggPage(object):
         # Although we're using to_int_be, this actually makes the CRC
         # a proper le integer, since Python's CRC is byteswapped.
         crc = cdata.to_int_be(crc).translate(cdata.bitswap)
-        data = data[:22] + crc + data[26:]
-        return data
+        return data[:22] + crc + data[26:]
 
     def __size(self):
         size = 27 # Initial header size
@@ -190,7 +188,7 @@ class OggPage(object):
         lambda self, v: self.__set_flag(2, v),
         doc="This is the last page of a logical bitstream.")
 
-    def renumber(klass, fileobj, serial, start):
+    def renumber(self, fileobj, serial, start):
         """Renumber pages belonging to a specified logical stream.
 
         fileobj must be opened with mode r+b or w+b.
@@ -228,7 +226,7 @@ class OggPage(object):
             number += 1
     renumber = classmethod(renumber)
 
-    def to_packets(klass, pages, strict=False):
+    def to_packets(self, pages, strict=False):
         """Construct a list of packet data from a list of Ogg pages.
 
         If strict is true, the first page must start a new packet,
@@ -378,7 +376,7 @@ class OggPage(object):
             klass.renumber(fileobj, serial, sequence)
     replace = classmethod(replace)
 
-    def find_last(klass, fileobj, serial):
+    def find_last(self, fileobj, serial):
         """Find the last page of the stream 'serial'.
 
         If the file is not multiplexed this function is fast. If it is,
@@ -419,9 +417,7 @@ class OggPage(object):
                     page = OggPage(fileobj)
                 best_page = page
             return page
-        except error:
-            return best_page
-        except EOFError:
+        except (error, EOFError):
             return best_page
     find_last = classmethod(find_last)
 

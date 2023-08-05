@@ -18,14 +18,14 @@ try:
             # skip blank or commented lines
             titlemode = True
         elif line.startswith('>'):
-            help_list[title][-1] += ' ' + line[1:]
+            help_list[title][-1] += f' {line[1:]}'
         elif ':' not in line:
             if titlemode:
                 title = line
                 help_list[title] = []
                 titlemode = False
             else:
-                help_list[title][-1] += ' ' + line
+                help_list[title][-1] += f' {line}'
         else:
             titlemode = False
             value, data = [x.strip() for x in line.split(':', 1)]

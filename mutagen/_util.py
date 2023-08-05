@@ -93,8 +93,7 @@ class DictMixin(object):
         return repr(dict(self.items()))
 
     def __cmp__(self, other):
-        if other is None: return 1
-        else: return cmp(dict(self.items()), other)
+        return 1 if other is None else cmp(dict(self.items()), other)
 
     __hash__ = object.__hash__
 
@@ -165,8 +164,12 @@ class cdata(object):
     to_longlong_be = staticmethod(lambda data: struct.pack('>q', data))
     to_ulonglong_be = staticmethod(lambda data: struct.pack('>Q', data))
 
-    bitswap = ''.join([chr(sum([((val >> i) & 1) << (7-i) for i in range(8)]))
-                       for val in range(256)])
+    bitswap = ''.join(
+        [
+            chr(sum(((val >> i) & 1) << (7 - i) for i in range(8)))
+            for val in range(256)
+        ]
+    )
     del(i)
     del(val)
 
@@ -223,44 +226,43 @@ def insert_bytes(fobj, size, offset, BUFFER_SIZE=2**16):
     fobj.write('\x00' * size)
     fobj.flush()
     try:
-        try:
-            import mmap
-            map = mmap.mmap(fobj.fileno(), filesize + size)
-            try: map.move(offset + size, offset, movesize)
-            finally: map.close()
-        except (ValueError, EnvironmentError, ImportError):
-            # handle broken mmap scenarios
-            locked = lock(fobj)
-            fobj.truncate(filesize)
+        import mmap
+        map = mmap.mmap(fobj.fileno(), filesize + size)
+        try: map.move(offset + size, offset, movesize)
+        finally: map.close()
+    except (ValueError, EnvironmentError, ImportError):
+        # handle broken mmap scenarios
+        locked = lock(fobj)
+        fobj.truncate(filesize)
 
-            fobj.seek(0, 2)
-            padsize = size
-            # Don't generate an enormous string if we need to pad
-            # the file out several megs.
-            while padsize:
-                addsize = min(BUFFER_SIZE, padsize)
-                fobj.write("\x00" * addsize)
-                padsize -= addsize
+        fobj.seek(0, 2)
+        padsize = size
+        # Don't generate an enormous string if we need to pad
+        # the file out several megs.
+        while padsize:
+            addsize = min(BUFFER_SIZE, padsize)
+            fobj.write("\x00" * addsize)
+            padsize -= addsize
 
-            fobj.seek(filesize, 0)
-            while movesize:
-                # At the start of this loop, fobj is pointing at the end
-                # of the data we need to move, which is of movesize length.
-                thismove = min(BUFFER_SIZE, movesize)
-                # Seek back however much we're going to read this frame.
-                fobj.seek(-thismove, 1)
-                nextpos = fobj.tell()
-                # Read it, so we're back at the end.
-                data = fobj.read(thismove)
-                # Seek back to where we need to write it.
-                fobj.seek(-thismove + size, 1)
-                # Write it.
-                fobj.write(data)
-                # And seek back to the end of the unmoved data.
-                fobj.seek(nextpos)
-                movesize -= thismove
+        fobj.seek(filesize, 0)
+        while movesize:
+            # At the start of this loop, fobj is pointing at the end
+            # of the data we need to move, which is of movesize length.
+            thismove = min(BUFFER_SIZE, movesize)
+            # Seek back however much we're going to read this frame.
+            fobj.seek(-thismove, 1)
+            nextpos = fobj.tell()
+            # Read it, so we're back at the end.
+            data = fobj.read(thismove)
+            # Seek back to where we need to write it.
+            fobj.seek(-thismove + size, 1)
+            # Write it.
+            fobj.write(data)
+            # And seek back to the end of the unmoved data.
+            fobj.seek(nextpos)
+            movesize -= thismove
 
-            fobj.flush()
+        fobj.flush()
     finally:
         if locked:
             unlock(fobj)
@@ -291,13 +293,11 @@ def delete_bytes(fobj, size, offset, BUFFER_SIZE=2**16):
                 # handle broken mmap scenarios
                 locked = lock(fobj)
                 fobj.seek(offset + size)
-                buf = fobj.read(BUFFER_SIZE)
-                while buf:
+                while buf := fobj.read(BUFFER_SIZE):
                     fobj.seek(offset)
                     fobj.write(buf)
                     offset += len(buf)
                     fobj.seek(offset + size)
-                    buf = fobj.read(BUFFER_SIZE)
         fobj.truncate(filesize - size)
         fobj.flush()
     finally:

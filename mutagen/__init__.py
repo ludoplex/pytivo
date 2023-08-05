@@ -108,8 +108,7 @@ class FileType(mutagen._util.DictMixin):
 
         If the file has no tags at all, an empty list is returned.
         """
-        if self.tags is None: return []
-        else: return self.tags.keys()
+        return [] if self.tags is None else self.tags.keys()
 
     def delete(self, filename=None):
         """Remove tags from a file."""
@@ -136,7 +135,7 @@ class FileType(mutagen._util.DictMixin):
 
     def pprint(self):
         """Print stream information and comment key=value pairs."""
-        stream = "%s (%s)" % (self.info.pprint(), self.mime[0])
+        stream = f"{self.info.pprint()} ({self.mime[0]})"
         try: tags = self.tags.pprint()
         except AttributeError:
             return stream
@@ -171,11 +170,9 @@ def File(filename, options=None, easy=False):
         from mutagen.flac import FLAC
         if easy:
             from mutagen.easyid3 import EasyID3FileType as ID3FileType
-        else:
-            from mutagen.id3 import ID3FileType
-        if easy:
             from mutagen.mp3 import EasyMP3 as MP3
         else:
+            from mutagen.id3 import ID3FileType
             from mutagen.mp3 import MP3
         from mutagen.oggflac import OggFLAC
         from mutagen.oggspeex import OggSpeex
@@ -213,5 +210,4 @@ def File(filename, options=None, easy=False):
     results = zip(results, options)
     results.sort()
     (score, name), Kind = results[-1]
-    if score > 0: return Kind(filename)
-    else: return None
+    return Kind(filename) if score > 0 else None

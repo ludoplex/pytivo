@@ -153,16 +153,12 @@ class _APEv2Data(object):
         elif self.footer is not None:
             self.end = self.footer + 32
             self.data = self.end - self.size
-            if self.flags & HAS_HEADER:
-                self.header = self.data - 32
-            else:
-                self.header = self.data
+            self.header = self.data - 32 if self.flags & HAS_HEADER else self.data
         else: raise APENoHeaderError("No APE tag found")
 
     def __fix_brokenness(self, fileobj):
         # Fix broken tags written with PyMusepack.
-        if self.header is not None: start = self.header
-        else: start = self.data
+        start = self.header if self.header is not None else self.data
         fileobj.seek(start)
 
         while start > 0:
@@ -172,10 +168,10 @@ class _APEv2Data(object):
             except IOError:
                 break
             else:
-                if fileobj.read(8) == "APETAGEX":
-                    fileobj.seek(-8, 1)
-                    start = fileobj.tell()
-                else: break
+                if fileobj.read(8) != "APETAGEX":
+                    break
+                fileobj.seek(-8, 1)
+                start = fileobj.tell()
         self.start = start
 
 class APEv2(DictMixin, Metadata):
@@ -201,7 +197,7 @@ class APEv2(DictMixin, Metadata):
         """Return tag key=value pairs in a human-readable format."""
         items = self.items()
         items.sort()
-        return "\n".join(["%s=%s" % (k, v.pprint()) for k, v in items])
+        return "\n".join([f"{k}={v.pprint()}" for k, v in items])
 
     def load(self, filename):
         """Load tags from a filename."""
@@ -221,7 +217,7 @@ class APEv2(DictMixin, Metadata):
     def __parse_tag(self, tag, count):
         fileobj = StringIO(tag)
 
-        for i in range(count):
+        for _ in range(count):
             size = cdata.uint_le(fileobj.read(4))
             flags = cdata.uint_le(fileobj.read(4))
 
@@ -436,7 +432,8 @@ class APEExtValue(_APEValue):
 
     External values are usually URI or IRI strings.
     """
-    def pprint(self): return "[External] %s" % unicode(self)
+    def pprint(self):
+        return f"[External] {unicode(self)}"
 
 class APEv2File(FileType):
     class _Info(object):
@@ -457,11 +454,11 @@ class APEv2File(FileType):
         else:
             raise ValueError("%r already has tags: %r" % (self, self.tags))
 
-    def score(filename, fileobj, header):
+    def score(self, fileobj, header):
         try: fileobj.seek(-160, 2)
         except IOError:
             fileobj.seek(0)
         footer = fileobj.read()
-        filename = filename.lower()
+        self = self.lower()
         return (("APETAGEX" in footer) - header.startswith("ID3"))
     score = staticmethod(score)

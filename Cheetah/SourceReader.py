@@ -55,7 +55,7 @@ class SourceReader:
         self._filename = filename
 
         self._srcLen = len(src)
-        if breakPoint == None:
+        if breakPoint is None:
             self._breakPoint = self._srcLen
         else:
             self.setBreakPoint(breakPoint)
@@ -70,7 +70,7 @@ class SourceReader:
             EOLmatch = EOLZre.search(src, pos)
             self._EOLs.append(EOLmatch.start())
             pos = EOLmatch.end()
-            
+
         self._BOLs = []
         for pos in self._EOLs:
             BOLpos = self.findBOL(pos)
@@ -99,28 +99,28 @@ class SourceReader:
         return self._srcLines
 
     def lineNum(self, pos=None):
-        if pos == None:
+        if pos is None:
             pos = self._pos
-            
+
         for i in range(len(self._BOLs)):
             if pos >= self._BOLs[i] and pos <= self._EOLs[i]:
                 return i
             
     def getRowCol(self, pos=None):
-        if pos == None:
+        if pos is None:
             pos = self._pos
         lineNum = self.lineNum(pos)
         BOL, EOL = self._BOLs[lineNum], self._EOLs[lineNum]
         return lineNum+1, pos-BOL+1
             
     def getRowColLine(self, pos=None):
-        if pos == None:
+        if pos is None:
             pos = self._pos
-        row, col = self.getRowCol(pos)    
+        row, col = self.getRowCol(pos)
         return row, col, self.splitlines()[row-1]
 
     def getLine(self, pos):
-        if pos == None:
+        if pos is None:
             pos = self._pos
         lineNum = self.lineNum(pos)
         return self.splitlines()[lineNum]
@@ -138,22 +138,23 @@ class SourceReader:
                     
     def checkPos(self, pos):
         if not pos <= self._breakPoint:
-            raise Error("pos (" + str(pos) + ") is invalid: beyond the stream's end (" +
-                        str(self._breakPoint-1) + ")" )
-        elif not pos >=0:
-            raise Error("pos (" + str(pos) + ") is invalid: less than 0" )
+            raise Error(
+                f"pos ({str(pos)}) is invalid: beyond the stream's end ({str(self._breakPoint - 1)})"
+            )
+        elif pos < 0:
+            raise Error(f"pos ({str(pos)}) is invalid: less than 0")
 
     def breakPoint(self):
         return self._breakPoint
     
     def setBreakPoint(self, pos):
         if pos > self._srcLen:
-            raise Error("New breakpoint (" + str(pos) +
-                        ") is invalid: beyond the end of stream's source string (" +
-                        str(self._srcLen) + ")" )
-        elif not pos >= 0:
-            raise Error("New breakpoint (" + str(pos) + ") is invalid: less than 0" )        
-        
+            raise Error(
+                f"New breakpoint ({str(pos)}) is invalid: beyond the end of stream's source string ({str(self._srcLen)})"
+            )
+        elif pos < 0:
+            raise Error(f"New breakpoint ({str(pos)}) is invalid: less than 0")        
+
         self._breakPoint = pos
 
     def setBookmark(self, name):
@@ -165,11 +166,12 @@ class SourceReader:
     
     def gotoBookmark(self, name):
         if not self.hasBookmark(name):
-            raise Error("Invalid bookmark (" + name + ") is invalid: does not exist")
+            raise Error(f"Invalid bookmark ({name}) is invalid: does not exist")
         pos = self._bookmarks[name]
         if not self.validPos(pos):
-            raise Error("Invalid bookmark (" + name + ', '+
-                        str(pos) + ") is invalid: pos is out of range" )        
+            raise Error(
+                f"Invalid bookmark ({name}, {str(pos)}) is invalid: pos is out of range"
+            )
         self._pos = pos
 
     def atEnd(self):
@@ -194,7 +196,7 @@ class SourceReader:
             raise Error('Already at beginning of stream')
 
         self._pos -= 1
-        if not c==None:
+        if c is not None:
             self._src[self._pos] = c
 
     def advance(self, offset=1):
@@ -213,7 +215,7 @@ class SourceReader:
 
     def readTo(self, to, start=None):
         self.checkPos(to)
-        if start == None:
+        if start is None:
             start = self._pos
         self._pos = to
         return self._src[start:to]
@@ -221,49 +223,40 @@ class SourceReader:
         
     def readToEOL(self, start=None, gobble=True):
         EOLmatch = EOLZre.search(self.src(), self.pos())
-        if gobble:
-            pos = EOLmatch.end()
-        else:
-            pos = EOLmatch.start()
+        pos = EOLmatch.end() if gobble else EOLmatch.start()
         return self.readTo(to=pos, start=start)
     
 
     def find(self, it, pos=None):
-        if pos == None:
+        if pos is None:
             pos = self._pos
         return self._src.find(it, pos )
 
     def startswith(self, it, pos=None):
-        if self.find(it, pos) == self.pos():
-            return True
-        else:
-            return False
+        return self.find(it, pos) == self.pos()
                     
     def rfind(self, it, pos):
-        if pos == None:
+        if pos is None:
             pos = self._pos
         return self._src.rfind(it, pos)
         
     def findBOL(self, pos=None):
-        if pos == None:
+        if pos is None:
             pos = self._pos
         src = self.src()
         return max(src.rfind('\n',0,pos)+1, src.rfind('\r',0,pos)+1, 0)
         
     def findEOL(self, pos=None, gobble=False):
-        if pos == None:
+        if pos is None:
             pos = self._pos
 
         match = EOLZre.search(self.src(), pos)
-        if gobble:
-            return match.end()
-        else:
-            return match.start()
+        return match.end() if gobble else match.start()
     
     def isLineClearToPos(self, pos=None):
-        if pos == None:
+        if pos is None:
             pos = self.pos()
-        self.checkPos(pos)            
+        self.checkPos(pos)
         src = self.src()
         BOL = self.findBOL()
         return BOL == pos or src[BOL:pos].isspace()
@@ -291,7 +284,7 @@ class SourceReader:
         return self.src()[start:self.pos()]
 
     def matchNonWhiteSpace(self, WSchars=' \f\t\n\r'):
-        return self.atEnd() or not self.peek() in WSchars
+        return self.atEnd() or self.peek() not in WSchars
 
     def getNonWhiteSpace(self, WSchars=' \f\t\n\r'):
         if not self.matchNonWhiteSpace(WSchars):
